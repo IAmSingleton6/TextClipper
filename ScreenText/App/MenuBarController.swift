@@ -1,10 +1,15 @@
 import AppKit
+import KeyboardShortcuts
 
 @MainActor
-final class MenuBarController: NSObject {
+final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
 
-    override init() {
+    private let onCapture: () -> Void
+    private var captureItem: NSMenuItem?
+
+    init(onCapture: @escaping () -> Void) {
+        self.onCapture = onCapture
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureButton()
@@ -23,10 +28,12 @@ final class MenuBarController: NSObject {
     private func configureMenu() {
         let menu = NSMenu(title: "ScreenText")
         menu.autoenablesItems = false
+        menu.delegate = self
 
-        // These entry points become available when their implementation phases land.
-        let captureItem = NSMenuItem(title: "Capture Text", action: nil, keyEquivalent: "")
-        captureItem.isEnabled = false
+        let captureItem = NSMenuItem(title: "Capture Text", action: #selector(captureText), keyEquivalent: "")
+        captureItem.target = self
+        captureItem.setShortcut(for: .captureText)
+        self.captureItem = captureItem
         menu.addItem(captureItem)
         menu.addItem(.separator())
 
@@ -41,6 +48,23 @@ final class MenuBarController: NSObject {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+    }
+
+    func setCaptureActive(_ isActive: Bool) {
+        captureItem?.state = isActive ? .on : .off
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        // AppKit handles the menu key equivalent while tracking; avoid a second global invocation.
+        KeyboardShortcuts.disable(.captureText)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        KeyboardShortcuts.enable(.captureText)
+    }
+
+    @objc private func captureText() {
+        onCapture()
     }
 
     @objc private func quit() {
