@@ -1,17 +1,31 @@
 import KeyboardShortcuts
 
+enum CaptureState: Equatable {
+    case idle
+    case toolbar
+    case selecting(CaptureMode)
+}
+
 @MainActor
 final class CaptureController {
-    private(set) var isActive = false
+    private(set) var state: CaptureState = .idle
+    var isActive: Bool { state != .idle }
+    var onSelectionCompleted: ((Selection) -> Void)?
     var selectedMode: CaptureMode { toolbarModel.mode }
     var onActivityChanged: ((Bool) -> Void)?
 
     private let toolbar: any CaptureToolbarPresenting
+    private let selectionManager: any SelectionManaging
+    private let displayProvider: () -> SelectionDisplay?
     private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
 
-    init(toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow()) {
+    init(toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
+         selectionManager: any SelectionManaging = SelectionManager(),
+         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse) {
         self.toolbar = toolbar
+        self.selectionManager = selectionManager
+        self.displayProvider = displayProvider
     }
 
     func toggle() {
@@ -23,21 +37,31 @@ final class CaptureController {
     }
 
     func start() {
-        guard !isActive else { return }
+        guard !isActive, let display = displayProvider() else { return }
         toolbarModel.mode = .box
+        guard selectionManager.prepare(
+            display: display, mode: .box,
+            onStarted: { [weak self] in self?.selectionStarted() },
+            onCompleted: { [weak self] selection in self?.selectionCompleted(selection) },
+            onCancelled: { [weak self] in self?.cancel() }
+        ) else { return }
         guard toolbar.show(
-            model: toolbarModel,
+            display: display, model: toolbarModel,
             onModeSelected: { [weak self] mode in self?.selectMode(mode) },
             onCancel: { [weak self] in self?.cancel() }
-        ) else { return }
-        isActive = true
+        ) else {
+            selectionManager.hide()
+            return
+        }
+        state = .toolbar
         onActivityChanged?(true)
         listenForEscape()
     }
 
     func selectMode(_ mode: CaptureMode) {
-        guard isActive else { return }
+        guard state == .toolbar else { return }
         toolbarModel.mode = mode
+        selectionManager.setMode(mode)
     }
 
     func cancel() {
@@ -45,8 +69,21 @@ final class CaptureController {
         escapeTask?.cancel()
         escapeTask = nil
         toolbar.hide()
-        isActive = false
+        selectionManager.hide()
+        state = .idle
         onActivityChanged?(false)
+    }
+
+    private func selectionStarted() {
+        guard state == .toolbar, selectedMode == .box else { return }
+        state = .selecting(.box)
+        toolbar.hide()
+    }
+
+    private func selectionCompleted(_ selection: Selection) {
+        guard state == .selecting(.box) else { return }
+        cancel()
+        onSelectionCompleted?(selection)
     }
 
     private func listenForEscape() {
