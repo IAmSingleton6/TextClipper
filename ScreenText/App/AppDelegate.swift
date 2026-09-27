@@ -3,12 +3,12 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
-    private lazy var settingsWindow = SettingsWindowController(settings: settings)
+    private lazy var settingsWindow = SettingsWindowController(settings: settings, permissions: permissionManager)
     private let permissionManager = PermissionManager()
     private lazy var feedbackController = CaptureFeedbackController(settings: settings, permissionRequired: { [weak self] in
         self?.permissionManager.showPermissionRequired()
     })
-    private lazy var captureController = CaptureController(defaultModeProvider: { [weak self] in self?.settings.defaultMode ?? .box })
+    private lazy var captureController = CaptureController(defaultModeProvider: { [weak self] in self?.settings.lastSelectionMode ?? .box })
     private var displayObserver: DisplayConfigurationObserver?
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
@@ -47,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shortcutManager = GlobalShortcutManager(onCapture: onCapture)
         self.shortcutManager = shortcutManager
         shortcutManager.start()
+        if settings.consumeFirstLaunch() {
+            settingsWindow.show()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

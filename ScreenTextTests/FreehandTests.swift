@@ -39,8 +39,8 @@ struct FreehandTests {
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set("circle", forKey: "defaultSelectionMode")
         let settings = SettingsStore(defaults: defaults)
-        #expect(settings.defaultMode == .freehand)
-        settings.defaultMode = .freehand
+        #expect(settings.lastSelectionMode == .freehand)
+        settings.lastSelectionMode = .freehand
         #expect(defaults.string(forKey: "defaultSelectionMode") == "freehand")
     }
 
