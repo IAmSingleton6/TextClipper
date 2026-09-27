@@ -1,21 +1,24 @@
 import AppKit
 import KeyboardShortcuts
 
+enum MenuBarAction {
+    case capture
+    case settings
+}
+
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
 
-    private let onCapture: () -> Void
-    private let onSettings: () -> Void
+    private let onAction: (MenuBarAction) -> Void
     private var captureItem: NSMenuItem?
 
-    init(onCapture: @escaping () -> Void, onSettings: @escaping () -> Void) {
-        self.onCapture = onCapture
-        self.onSettings = onSettings
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    init(onAction: @escaping (MenuBarAction) -> Void) {
+        self.onAction = onAction
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
-        configureButton()
-        configureMenu()
+        self.configureButton()
+        self.configureMenu()
     }
 
     private func configureButton() {
@@ -50,27 +53,32 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
 
-        statusItem.menu = menu
+        self.statusItem.menu = menu
     }
 
     func setCaptureActive(_ isActive: Bool) {
-        captureItem?.state = isActive ? .on : .off
+        self.captureItem?.state = isActive ? .on : .off
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
+    func menuWillOpen(_: NSMenu) {
         // AppKit handles the menu key equivalent while tracking; avoid a second global invocation.
         KeyboardShortcuts.disable(.captureText)
     }
 
-    func menuDidClose(_ menu: NSMenu) {
+    func menuDidClose(_: NSMenu) {
         KeyboardShortcuts.enable(.captureText)
     }
 
     @objc private func captureText() {
-        onCapture()
+        self.onAction(.capture)
     }
 
-    @objc private func showSettings() { onSettings() }
+    @objc private func showSettings() {
+        // Let status-menu tracking finish before activating the Settings window.
+        DispatchQueue.main.async { [weak self] in
+            self?.onAction(.settings)
+        }
+    }
 
     @objc private func quit() {
         NSApp.terminate(nil)

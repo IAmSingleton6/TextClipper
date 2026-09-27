@@ -3,65 +3,87 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
-    private lazy var settingsWindow = SettingsWindowController(settings: settings, permissions: permissionManager)
     private let permissionManager = PermissionManager()
-    private lazy var feedbackController = CaptureFeedbackController(settings: settings, permissionRequired: { [weak self] in
-        self?.permissionManager.showPermissionRequired()
-    })
-    private lazy var captureController = CaptureController(defaultModeProvider: { [weak self] in self?.settings.lastSelectionMode ?? .box })
+
+    private lazy var settingsWindow = SettingsWindowController(
+        settings: settings,
+        permissions: permissionManager,
+    )
+
+    private lazy var feedbackController = CaptureFeedbackController(
+        settings: settings,
+        // TODO: Not sure whether the name is asking whether it is required, or to show the required
+        permissionRequired: { [weak self] in
+            self?.permissionManager.showPermissionRequired()
+        },
+    )
+
+    private lazy var captureController = CaptureController(
+        savedModeProvider: { [weak self] in
+            self?.settings.lastSelectionMode ?? .box
+        },
+        saveMode: { [weak self] mode in
+            self?.settings.lastSelectionMode = mode
+        },
+    )
+
     private var displayObserver: DisplayConfigurationObserver?
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        displayObserver = DisplayConfigurationObserver { [weak self] in
-            // An overlay and its local coordinates belong to one display layout.
+
+        self.displayObserver = DisplayConfigurationObserver { [weak self] in
             self?.captureController.cancel()
             self?.feedbackController.hide()
         }
-        captureController.onCaptureStarted = { [weak self] display in
-            self?.feedbackController.beginCapture(on: display)
+
+        self.menuBarController = MenuBarController { [weak self] action in
+            guard let self else { return }
+            switch action {
+            case .capture:
+                self.captureController.toggle()
+            case .settings:
+                self.captureController.cancel()
+                self.feedbackController.hide()
+                self.settingsWindow.show()
+            }
         }
-        captureController.onNoTextFound = { [weak self] in
-            self?.feedbackController.noTextFound()
+
+        self.captureController.onEvent = { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case let .started(display):
+                self.feedbackController.beginCapture(on: display)
+            case let .activityChanged(isActive):
+                self.menuBarController?.setCaptureActive(isActive)
+            case .noTextFound:
+                self.feedbackController.noTextFound()
+            case let .textRecognized(text):
+                self.feedbackController.copiedText(text)
+            case let .failed(error):
+                self.feedbackController.failed(error)
+            }
         }
-        captureController.onTextRecognized = { [weak self] text in
-            self?.feedbackController.copiedText(text)
-        }
-        captureController.onCaptureFailed = { [weak self] error in
-            self?.feedbackController.failed(error)
-        }
-        let onCapture: () -> Void = { [weak self] in
+
+        self.shortcutManager = GlobalShortcutManager { [weak self] in
             self?.captureController.toggle()
         }
-        let menuBarController = MenuBarController(onCapture: onCapture, onSettings: { [weak self] in
-            self?.captureController.cancel()
-            self?.feedbackController.hide()
-            self?.settingsWindow.show()
-        })
-        self.menuBarController = menuBarController
-        captureController.onActivityChanged = { [weak menuBarController] isActive in
-            menuBarController?.setCaptureActive(isActive)
-        }
-        let shortcutManager = GlobalShortcutManager(onCapture: onCapture)
-        self.shortcutManager = shortcutManager
-        shortcutManager.start()
-        if settings.consumeFirstLaunch() {
-            settingsWindow.show()
+        self.shortcutManager?.start()
+
+        if self.settings.consumeFirstLaunch() {
+            self.settingsWindow.show()
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        displayObserver = nil
-        shortcutManager?.stop()
-        shortcutManager = nil
-        captureController.cancel()
-        feedbackController.hide()
-        menuBarController = nil
+    func applicationWillTerminate(_: Notification) {
+        self.shortcutManager?.stop()
+        self.captureController.cancel()
+        self.feedbackController.hide()
     }
 }

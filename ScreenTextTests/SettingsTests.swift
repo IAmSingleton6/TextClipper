@@ -51,7 +51,7 @@ struct SettingsTests {
         #expect(SettingsStore(defaults: defaults).lastSelectionMode == .box)
     }
 
-    @Test func captureUsesSavedModeOnEachNewSession() throws {
+    @Test func `capture uses saved mode on each new session`() throws {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
@@ -63,20 +63,24 @@ struct SettingsTests {
         let display = SelectionDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 600, height: 400),
                                        visibleFrame: CGRect(x: 0, y: 0, width: 600, height: 400))
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(),
-            captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager,
-            displayProvider: { display }, defaultModeProvider: { settings.lastSelectionMode })
+                                           captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager,
+                                           displayProvider: { display }, savedModeProvider: { settings.lastSelectionMode },
+                                           saveMode: { settings.lastSelectionMode = $0 })
         controller.start()
         #expect(toolbar.model?.mode == .freehand)
         #expect(manager.window?.selectionView.mode == .freehand)
         controller.selectMode(.box)
+        #expect(SettingsStore(defaults: defaults).lastSelectionMode == .box)
         controller.cancel()
         controller.start()
-        #expect(controller.selectedMode == .freehand)
+        #expect(controller.selectedMode == .box)
         controller.cancel()
-        settings.lastSelectionMode = .box
+        settings.lastSelectionMode = .freehand
         controller.start()
-        #expect(toolbar.model?.mode == .box)
-        #expect(manager.window?.selectionView.mode == .box)
+        #expect(toolbar.model?.mode == .freehand)
+        #expect(manager.window?.selectionView.mode == .freehand)
+        controller.selectMode(.freehand)
+        #expect(SettingsStore(defaults: defaults).lastSelectionMode == .freehand)
         controller.cancel()
     }
 

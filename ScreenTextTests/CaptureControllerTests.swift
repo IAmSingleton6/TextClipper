@@ -1,13 +1,26 @@
 import CoreGraphics
-import Testing
 @testable import ScreenText
+import Testing
 
-@Suite @MainActor
+@MainActor
 struct CaptureControllerTests {
-    @Test func repeatedInvocationCancelsAndCanStartAgain() {
+    @Test func `repeated invocation cancels and can start again`() {
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
-        controller.onActivityChanged = { changes.append($0) }
+        var events: [String] = []
+        controller.onEvent = { event in
+            switch event {
+            case let .started(display):
+                #expect(display.id == testDisplay.id)
+                #expect(controller.state == .toolbar)
+                events.append("started")
+            case let .activityChanged(isActive):
+                changes.append(isActive)
+                events.append(isActive ? "active" : "inactive")
+            default:
+                Issue.record("Toggling capture must not deliver a result")
+            }
+        }
 
         #expect(!controller.isActive)
         controller.toggle()
@@ -17,12 +30,19 @@ struct CaptureControllerTests {
         controller.toggle()
         #expect(controller.isActive)
         #expect(changes == [true, false, true])
+        #expect(events == ["started", "active", "inactive", "started", "active"])
     }
 
-    @Test func startAndCancelAreIdempotent() {
+    @Test func `start and cancel are idempotent`() {
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
-        controller.onActivityChanged = { changes.append($0) }
+        controller.onEvent = { event in
+            switch event {
+            case let .activityChanged(isActive):
+                changes.append(isActive)
+            default: break
+            }
+        }
 
         controller.cancel()
         controller.start()
@@ -33,7 +53,7 @@ struct CaptureControllerTests {
         #expect(changes == [true, false])
     }
 
-    @Test func modeButtonsUpdateTheToolbarAndNewSessionsDefaultToBox() {
+    @Test func `mode buttons update the toolbar and new sessions remember last mode`() {
         let toolbar = TestCaptureToolbar()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         controller.selectMode(.freehand)
@@ -41,97 +61,125 @@ struct CaptureControllerTests {
         controller.start()
         #expect(toolbar.isVisible)
         #expect(toolbar.model?.mode == .box)
-        toolbar.onModeSelected?(.freehand)
+        toolbar.onAction?(.selectMode(.freehand))
         #expect(controller.selectedMode == .freehand)
         #expect(toolbar.model?.mode == .freehand)
-        toolbar.onModeSelected?(.box)
+        toolbar.onAction?(.selectMode(.box))
         #expect(controller.selectedMode == .box)
-        toolbar.onModeSelected?(.freehand)
-        toolbar.onCancel?()
+        toolbar.onAction?(.selectMode(.freehand))
+        toolbar.onAction?(.cancel)
         #expect(!controller.isActive)
         #expect(!toolbar.isVisible)
         controller.start()
-        #expect(controller.selectedMode == .box)
+        #expect(controller.selectedMode == .freehand)
+        toolbar.onAction?(.selectMode(.box))
         controller.toggle()
         #expect(!toolbar.isVisible)
         #expect(toolbar.showCount == 2)
         #expect(toolbar.hideCount == 2)
+        controller.start()
+        #expect(controller.selectedMode == .box)
+        controller.cancel()
     }
 
-    @Test func missingDisplayLeavesTheControllerIdle() {
+    @Test func `missing display leaves the controller idle`() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
-        controller.onActivityChanged = { changes.append($0) }
+        controller.onEvent = { event in
+            switch event {
+            case let .activityChanged(isActive):
+                changes.append(isActive)
+            default: break
+            }
+        }
         controller.start()
         #expect(!controller.isActive)
         #expect(changes.isEmpty)
     }
-    @Test func selectionHidesToolbarAndDeliversResultAfterTeardown() async throws {
+
+    @Test func `selection hides toolbar and delivers result after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 25, y: 40, width: 100, height: 60), shape: .rectangle)
         var completed: String?
-        controller.onTextRecognized = {
-            #expect(!toolbar.isVisible)
-            #expect(!selections.isVisible)
-            #expect(controller.state == .idle)
-            completed = $0
+        controller.onEvent = { event in
+            switch event {
+            case let .textRecognized(text):
+                #expect(!toolbar.isVisible)
+                #expect(!selections.isVisible)
+                #expect(controller.state == .idle)
+                completed = text
+            default: break
+            }
         }
         controller.start()
         #expect(controller.state == .toolbar)
-        selections.onStarted?()
+        selections.onEvent?(.started)
         #expect(controller.state == .selecting(.box))
         #expect(!toolbar.isVisible)
         controller.selectMode(.freehand)
         #expect(controller.selectedMode == .box)
-        selections.onCompleted?(selection)
+        selections.onEvent?(.completed(selection))
         #expect(controller.state == .processing)
-        for _ in 0..<100 where completed == nil { try await Task.sleep(for: .milliseconds(2)) }
+        for _ in 0 ..< 100 where completed == nil {
+            try await Task.sleep(for: .milliseconds(2))
+        }
         #expect(completed == "Recognized fixture")
         #expect(!controller.isActive)
     }
 
-    @Test func freehandDragLocksModeAndCompletesAfterTeardown() async throws {
+    @Test func `freehand drag locks mode and completes after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .freehand(points: [.init(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90)]))
         var completed: String?
-        controller.onTextRecognized = {
-            #expect(controller.state == .idle)
-            #expect(!toolbar.isVisible)
-            #expect(!selections.isVisible)
-            completed = $0
+        controller.onEvent = { event in
+            switch event {
+            case let .textRecognized(text):
+                #expect(controller.state == .idle)
+                #expect(!toolbar.isVisible)
+                #expect(!selections.isVisible)
+                completed = text
+            default: break
+            }
         }
         controller.start()
         controller.selectMode(.freehand)
-        selections.onStarted?()
+        selections.onEvent?(.started)
         #expect(controller.state == .selecting(.freehand))
         #expect(!toolbar.isVisible)
         controller.selectMode(.box)
         #expect(controller.selectedMode == .freehand)
-        selections.onCompleted?(selection)
+        selections.onEvent?(.completed(selection))
         #expect(controller.state == .processing)
-        for _ in 0..<100 where completed == nil { try await Task.sleep(for: .milliseconds(2)) }
+        for _ in 0 ..< 100 where completed == nil {
+            try await Task.sleep(for: .milliseconds(2))
+        }
         #expect(completed == "Recognized fixture")
     }
 
-    @Test func cancellingDragDoesNotDeliverSelection() {
+    @Test func `cancelling drag does not deliver selection`() {
         let selections = TestSelectionManager()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
         var completed = false
-        controller.onTextRecognized = { _ in completed = true }
+        controller.onEvent = { event in
+            switch event {
+            case .textRecognized:
+                completed = true
+            default: break
+            }
+        }
         controller.start()
-        selections.onStarted?()
-        selections.onCancelled?()
+        selections.onEvent?(.started)
+        selections.onEvent?(.cancelled)
         #expect(controller.state == .idle)
         #expect(!selections.isVisible)
         #expect(!completed)
     }
-
 }
 
 @MainActor
@@ -141,24 +189,21 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
     var showCount = 0
     var hideCount = 0
     var model: CaptureToolbarModel?
-    var onModeSelected: ((CaptureMode) -> Void)?
-    var onCancel: (() -> Void)?
+    var onAction: ((CaptureToolbarAction) -> Void)?
 
-    func show(display: SelectionDisplay, model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool {
-        guard canShow else { return false }
+    func show(display _: SelectionDisplay, model: CaptureToolbarModel, onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool {
+        guard self.canShow else { return false }
         self.model = model
-        self.onModeSelected = onModeSelected
-        self.onCancel = onCancel
-        isVisible = true
-        showCount += 1
+        self.onAction = onAction
+        self.isVisible = true
+        self.showCount += 1
         return true
     }
 
     func hide() {
-        isVisible = false
-        hideCount += 1
-        onModeSelected = nil
-        onCancel = nil
+        self.isVisible = false
+        self.hideCount += 1
+        self.onAction = nil
     }
 }
 
@@ -167,25 +212,18 @@ private let testDisplay = SelectionDisplay(id: 1, frame: .init(x: -1440, y: 900,
 @MainActor
 final class TestSelectionManager: SelectionManaging {
     var isVisible = false
-    var onStarted: (() -> Void)?
-    var onCompleted: ((Selection) -> Void)?
-    var onCancelled: (() -> Void)?
+    var onEvent: ((SelectionEvent<Selection>) -> Void)?
 
-    func prepare(display: SelectionDisplay, mode: CaptureMode, onStarted: @escaping () -> Void,
-                 onCompleted: @escaping (Selection) -> Void, onCancelled: @escaping () -> Void) -> Bool {
-        isVisible = true
-        self.onStarted = onStarted
-        self.onCompleted = onCompleted
-        self.onCancelled = onCancelled
+    func prepare(display _: SelectionDisplay, mode _: CaptureMode, onEvent: @escaping (SelectionEvent<Selection>) -> Void) -> Bool {
+        self.isVisible = true
+        self.onEvent = onEvent
         return true
     }
 
-    func setMode(_ mode: CaptureMode) {}
+    func setMode(_: CaptureMode) {}
 
     func hide() {
-        isVisible = false
-        onStarted = nil
-        onCompleted = nil
-        onCancelled = nil
+        self.isVisible = false
+        self.onEvent = nil
     }
 }
