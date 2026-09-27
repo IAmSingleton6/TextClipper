@@ -68,9 +68,9 @@ struct CaptureProcessingTests {
         let toolbar = TestCaptureToolbar()
         let manager = TestSelectionManager()
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(captureService: service, toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: service, toolbar: toolbar, selectionManager: manager, displayProvider: { display })
         var deliveries = 0
-        controller.onCaptureCompleted = { _ in deliveries += 1 }
+        controller.onTextRecognized = { _ in deliveries += 1 }
         controller.onCaptureFailed = { _ in deliveries += 1 }
         controller.start()
         manager.onStarted?()
@@ -93,7 +93,7 @@ struct CaptureProcessingTests {
         let service = SuspendedCaptureService()
         let manager = TestSelectionManager()
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(captureService: service, toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
+        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: service, toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
         var failed = false
         let changeCount = NSPasteboard.general.changeCount
         controller.onCaptureFailed = {

@@ -14,7 +14,7 @@ final class PermissionManager {
                 NSWorkspace.shared.open(url)
             }
         } else {
-            alert.messageText = "Could not capture selection"
+            alert.messageText = error is OCRError ? "Could not read selected text" : "Could not capture selection"
             alert.informativeText = "Please try selecting the text again."
             alert.addButton(withTitle: "OK")
             alert.runModal()
