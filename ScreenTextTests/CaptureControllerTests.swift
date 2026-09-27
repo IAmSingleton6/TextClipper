@@ -5,7 +5,14 @@ import Testing
 @MainActor
 struct CaptureControllerTests {
     @Test func `repeated invocation cancels and can start again`() {
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: TestSelectionManager(),
+            displayProvider: { testDisplay },
+        )
         var changes: [Bool] = []
         var events: [String] = []
         controller.onEvent = { event in
@@ -34,7 +41,14 @@ struct CaptureControllerTests {
     }
 
     @Test func `start and cancel are idempotent`() {
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: TestSelectionManager(),
+            displayProvider: { testDisplay },
+        )
         var changes: [Bool] = []
         controller.onEvent = { event in
             switch event {
@@ -55,7 +69,14 @@ struct CaptureControllerTests {
 
     @Test func `mode buttons update the toolbar and new sessions remember last mode`() {
         let toolbar = TestCaptureToolbar()
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: TestSelectionManager(),
+            displayProvider: { testDisplay },
+        )
         controller.selectMode(.freehand)
         #expect(controller.selectedMode == .box)
         controller.start()
@@ -85,7 +106,14 @@ struct CaptureControllerTests {
     @Test func `missing display leaves the controller idle`() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: TestSelectionManager(),
+            displayProvider: { testDisplay },
+        )
         var changes: [Bool] = []
         controller.onEvent = { event in
             switch event {
@@ -102,8 +130,19 @@ struct CaptureControllerTests {
     @Test func `selection hides toolbar and delivers result after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
-        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 25, y: 40, width: 100, height: 60), shape: .rectangle)
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: selections,
+            displayProvider: { testDisplay },
+        )
+        let selection = Selection(
+            displayID: testDisplay.id,
+            rect: .init(x: 25, y: 40, width: 100, height: 60),
+            shape: .rectangle,
+        )
         var completed: String?
         controller.onEvent = { event in
             switch event {
@@ -134,8 +173,19 @@ struct CaptureControllerTests {
     @Test func `freehand drag locks mode and completes after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
-        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .freehand(points: [.init(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90)]))
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: selections,
+            displayProvider: { testDisplay },
+        )
+        let selection = Selection(
+            displayID: testDisplay.id,
+            rect: .init(x: 20, y: 30, width: 100, height: 60),
+            shape: .freehand(points: [.init(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90)]),
+        )
         var completed: String?
         controller.onEvent = { event in
             switch event {
@@ -164,7 +214,14 @@ struct CaptureControllerTests {
 
     @Test func `cancelling drag does not deliver selection`() {
         let selections = TestSelectionManager()
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: selections,
+            displayProvider: { testDisplay },
+        )
         var completed = false
         controller.onEvent = { event in
             switch event {
@@ -191,7 +248,11 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
     var model: CaptureToolbarModel?
     var onAction: ((CaptureToolbarAction) -> Void)?
 
-    func show(display _: SelectionDisplay, model: CaptureToolbarModel, onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool {
+    func show(
+        display _: SelectionDisplay,
+        model: CaptureToolbarModel,
+        onAction: @escaping (CaptureToolbarAction) -> Void,
+    ) -> Bool {
         guard self.canShow else { return false }
         self.model = model
         self.onAction = onAction
@@ -207,14 +268,22 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
     }
 }
 
-private let testDisplay = SelectionDisplay(id: 1, frame: .init(x: -1440, y: 900, width: 1440, height: 900), visibleFrame: .init(x: -1440, y: 900, width: 1440, height: 875))
+private let testDisplay = SelectionDisplay(
+    id: 1,
+    frame: .init(x: -1440, y: 900, width: 1440, height: 900),
+    visibleFrame: .init(x: -1440, y: 900, width: 1440, height: 875),
+)
 
 @MainActor
 final class TestSelectionManager: SelectionManaging {
     var isVisible = false
     var onEvent: ((SelectionEvent<Selection>) -> Void)?
 
-    func prepare(display _: SelectionDisplay, mode _: CaptureMode, onEvent: @escaping (SelectionEvent<Selection>) -> Void) -> Bool {
+    func prepare(
+        display _: SelectionDisplay,
+        mode _: CaptureMode,
+        onEvent: @escaping (SelectionEvent<Selection>) -> Void,
+    ) -> Bool {
         self.isVisible = true
         self.onEvent = onEvent
         return true

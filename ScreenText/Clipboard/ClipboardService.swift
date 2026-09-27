@@ -6,8 +6,8 @@ enum ClipboardError: Error, Equatable {
 
 @MainActor
 protocol ClipboardWriting {
-    // False means there was no meaningful text; the pasteboard stays untouched.
-    @discardableResult func copy(_ text: String) throws -> Bool
+    @discardableResult
+    func copy(_ text: String) throws -> Bool
 }
 
 @MainActor
@@ -29,8 +29,8 @@ struct ClipboardService: ClipboardWriting {
     @discardableResult
     func copy(_ text: String) throws -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        _ = pasteboard.clearContents()
-        guard pasteboard.setString(text, forType: .string) else { throw ClipboardError.writeFailed }
+        _ = self.pasteboard.clearContents()
+        guard self.pasteboard.setString(text, forType: .string) else { throw ClipboardError.writeFailed }
         return true
     }
 }

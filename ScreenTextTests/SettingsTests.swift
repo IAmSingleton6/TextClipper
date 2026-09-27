@@ -63,8 +63,10 @@ struct SettingsTests {
         let display = SelectionDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 600, height: 400),
                                        visibleFrame: CGRect(x: 0, y: 0, width: 600, height: 400))
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(),
-                                           captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager,
-                                           displayProvider: { display }, savedModeProvider: { settings.lastSelectionMode },
+                                           captureService: TestScreenCaptureService(), toolbar: toolbar,
+                                           selectionManager: manager,
+                                           displayProvider: { display },
+                                           savedModeProvider: { settings.lastSelectionMode },
                                            saveMode: { settings.lastSelectionMode = $0 })
         controller.start()
         #expect(toolbar.model?.mode == .freehand)

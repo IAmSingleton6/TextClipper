@@ -27,8 +27,12 @@ struct CaptureFeedbackTests {
         let popup = TestTextPopup()
         let notifications = TestNotifications()
         var permissionRequests = 0
-        let feedback = CaptureFeedbackController(settings: settings, popup: popup, notifications: notifications,
-                                                 permissionRequired: { permissionRequests += 1 })
+        let feedback = CaptureFeedbackController(
+            settings: settings,
+            popup: popup,
+            notifications: notifications,
+            onPermissionRequired: { permissionRequests += 1 }
+        )
         feedback.beginCapture(on: self.display)
         feedback.copiedText("Hello")
         #expect(popup.text == nil)
@@ -63,8 +67,10 @@ struct CaptureFeedbackTests {
         let count = board.changeCount
         let manager = TestSelectionManager()
         let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
-                                           ocrService: FixedTextRecognizer(text: " \n"), captureService: TestScreenCaptureService(),
-                                           toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { self.display })
+                                           ocrService: FixedTextRecognizer(text: " \n"),
+                                           captureService: TestScreenCaptureService(),
+                                           toolbar: TestCaptureToolbar(), selectionManager: manager,
+                                           displayProvider: { self.display })
         var notified = false
         controller.onEvent = { event in
             switch event {
@@ -77,7 +83,11 @@ struct CaptureFeedbackTests {
         }
         controller.start()
         manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(displayID: self.display.id, rect: CGRect(x: 10, y: 20, width: 100, height: 60), shape: .rectangle)))
+        manager.onEvent?(.completed(Selection(
+            displayID: self.display.id,
+            rect: CGRect(x: 10, y: 20, width: 100, height: 60),
+            shape: .rectangle,
+        )))
         for _ in 0 ..< 100 where !notified {
             try await Task.sleep(for: .milliseconds(2))
         }

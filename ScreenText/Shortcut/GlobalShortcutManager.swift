@@ -3,7 +3,7 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     static let captureText = Self(
         "captureText",
-        initial: .init(.two, modifiers: [.command, .shift])
+        initial: .init(.two, modifiers: [.command, .shift]),
     )
 }
 
@@ -17,11 +17,11 @@ final class GlobalShortcutManager {
     }
 
     func start() {
-        guard listeningTask == nil else { return }
+        guard self.listeningTask == nil else { return }
         KeyboardShortcuts.enable(.captureText)
         let events = KeyboardShortcuts.events(for: .captureText)
         let onCapture = onCapture
-        listeningTask = Task {
+        self.listeningTask = Task {
             // Key-up delivers one invocation per press, even when the key is held.
             for await event in events where event == .keyUp {
                 guard !Task.isCancelled else { return }
@@ -31,8 +31,8 @@ final class GlobalShortcutManager {
     }
 
     func stop() {
-        listeningTask?.cancel()
-        listeningTask = nil
+        self.listeningTask?.cancel()
+        self.listeningTask = nil
         KeyboardShortcuts.disable(.captureText)
     }
 

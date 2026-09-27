@@ -10,7 +10,10 @@ final class SettingsStore {
 
     /// Keep the existing storage key so upgrades retain the last used mode.
     var lastSelectionMode: CaptureMode {
-        didSet { self.defaults.set(self.lastSelectionMode == .freehand ? "freehand" : "box", forKey: "defaultSelectionMode") }
+        didSet { self.defaults.set(
+            self.lastSelectionMode == .freehand ? "freehand" : "box",
+            forKey: "defaultSelectionMode",
+        ) }
     }
 
     init(defaults: UserDefaults = .standard) {

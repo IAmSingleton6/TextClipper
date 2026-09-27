@@ -142,7 +142,11 @@ struct SelectionTests {
 
     @Test func `manager preserves display local coordinates and hides before callback`() throws {
         let manager = SelectionManager()
-        let display = SelectionDisplay(id: 42, frame: .init(x: -1440, y: 900, width: 600, height: 400), visibleFrame: .init(x: -1440, y: 900, width: 600, height: 400))
+        let display = SelectionDisplay(
+            id: 42,
+            frame: .init(x: -1440, y: 900, width: 600, height: 400),
+            visibleFrame: .init(x: -1440, y: 900, width: 600, height: 400),
+        )
         var completed: Selection?
         let clipboardChanges = NSPasteboard.general.changeCount
         let prepared = manager.prepare(display: display, mode: .box, onEvent: { event in
@@ -161,14 +165,22 @@ struct SelectionTests {
         #expect(window.selectionView.bounds.origin == .zero)
         try window.selectionView.mouseDown(with: self.event(.leftMouseDown, at: .init(x: 120, y: 90), window: window))
         try window.selectionView.mouseUp(with: self.event(.leftMouseUp, at: .init(x: 20, y: 30), window: window))
-        #expect(completed == Selection(displayID: 42, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .rectangle))
+        #expect(completed == Selection(
+            displayID: 42,
+            rect: .init(x: 20, y: 30, width: 100, height: 60),
+            shape: .rectangle,
+        ))
         #expect(!window.isVisible)
         #expect(NSPasteboard.general.changeCount == clipboardChanges)
     }
 
     @Test func `escape cancels active drag and tiny selection cancels`() throws {
         let manager = SelectionManager()
-        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+        let display = SelectionDisplay(
+            id: 1,
+            frame: .init(x: 0, y: 0, width: 600, height: 400),
+            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
+        )
         var cancelled = 0
         let prepare = {
             manager.prepare(display: display, mode: .freehand, onEvent: { event in
@@ -197,7 +209,11 @@ struct SelectionTests {
 
     @Test func `drawn selection preserves concave path and automatically closes it`() throws {
         let manager = SelectionManager()
-        let display = SelectionDisplay(id: 42, frame: .init(x: -600, y: 400, width: 600, height: 400), visibleFrame: .init(x: -600, y: 400, width: 600, height: 400))
+        let display = SelectionDisplay(
+            id: 42,
+            frame: .init(x: -600, y: 400, width: 600, height: 400),
+            visibleFrame: .init(x: -600, y: 400, width: 600, height: 400),
+        )
         let path = [CGPoint(x: 20, y: 30), CGPoint(x: 120, y: 30), CGPoint(x: 120, y: 90),
                     CGPoint(x: 70, y: 60), CGPoint(x: 20, y: 90)]
         for points in [path, Array(path.reversed())] {
@@ -220,7 +236,11 @@ struct SelectionTests {
                 try window.selectionView.mouseDragged(with: self.event(.leftMouseDragged, at: point, window: window))
             }
             try window.selectionView.mouseUp(with: self.event(.leftMouseUp, at: #require(points.last), window: window))
-            #expect(completed == Selection(displayID: 42, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .freehand(points: points)))
+            #expect(completed == Selection(
+                displayID: 42,
+                rect: .init(x: 20, y: 30, width: 100, height: 60),
+                shape: .freehand(points: points),
+            ))
             #expect(!window.isVisible)
         }
     }
@@ -241,6 +261,7 @@ struct SelectionTests {
 
     private func event(_ type: NSEvent.EventType, at point: CGPoint, window: NSWindow) throws -> NSEvent {
         try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                                        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+                                        pressure: 1))
     }
 }

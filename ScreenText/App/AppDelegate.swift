@@ -12,8 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private lazy var feedbackController = CaptureFeedbackController(
         settings: settings,
-        // TODO: Not sure whether the name is asking whether it is required, or to show the required
-        permissionRequired: { [weak self] in
+        onPermissionRequired: { [weak self] in
             self?.permissionManager.showPermissionRequired()
         },
     )

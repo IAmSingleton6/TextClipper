@@ -12,11 +12,12 @@ final class NotificationService: NotificationPresenting {
     private var dismissalTask: Task<Void, Never>?
 
     func show(_ message: String, on display: SelectionDisplay? = nil) {
-        hide()
-        guard let frame = display?.visibleFrame ?? SelectionDisplay.atMouse()?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
+        self.hide()
+        guard let frame = display?.visibleFrame ?? SelectionDisplay.atMouse()?.visibleFrame ?? NSScreen.main?
+            .visibleFrame else { return }
         let size = CGSize(width: 320, height: 64)
         let panel = FeedbackPanel(contentRect: CGRect(x: frame.midX - size.width / 2,
-                                                     y: frame.minY + 96, width: size.width, height: size.height),
+                                                      y: frame.minY + 96, width: size.width, height: size.height),
                                   styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -44,7 +45,7 @@ final class NotificationService: NotificationPresenting {
         panel.contentView = background
         self.panel = panel
         panel.showFeedback()
-        dismissalTask = Task { [weak self] in
+        self.dismissalTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
             self?.hide()
@@ -52,16 +53,21 @@ final class NotificationService: NotificationPresenting {
     }
 
     func hide() {
-        dismissalTask?.cancel()
-        dismissalTask = nil
-        panel?.orderOut(nil)
-        panel = nil
+        self.dismissalTask?.cancel()
+        self.dismissalTask = nil
+        self.panel?.orderOut(nil)
+        self.panel = nil
     }
 
     deinit { dismissalTask?.cancel() }
 }
 
 private final class FeedbackPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool {
+        false
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
 }

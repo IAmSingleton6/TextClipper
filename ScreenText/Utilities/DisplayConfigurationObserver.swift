@@ -9,12 +9,14 @@ final class DisplayConfigurationObserver: NSObject {
         self.center = center
         self.onChange = onChange
         super.init()
-        center.addObserver(self, selector: #selector(changed),
+        center.addObserver(self, selector: #selector(self.changed),
                            name: NSApplication.didChangeScreenParametersNotification, object: nil)
     }
 
-    // AppKit delivers its display-configuration notification on the main thread.
-    @objc private func changed() { onChange() }
+    /// AppKit delivers its display-configuration notification on the main thread.
+    @objc private func changed() {
+        self.onChange()
+    }
 
     deinit { center.removeObserver(self) }
 }

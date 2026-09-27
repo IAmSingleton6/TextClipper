@@ -5,16 +5,17 @@ struct ImageMasker {
         case imageProcessingFailed
     }
 
-    // The input is already cropped to the selection's pixel bounds. Preserve
-    // those dimensions and clear pixels outside the drawn boundary before the image reaches OCR.
+    /// The input is already cropped to the selection's pixel bounds. Preserve
+    /// those dimensions and clear pixels outside the drawn boundary before the image reaches OCR.
     func applyFreehandMask(to image: CGImage, points: [CGPoint]) throws -> CGImage {
-        guard points.count >= 3, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw MaskError.imageProcessingFailed }
+        guard points.count >= 3,
+              points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw MaskError.imageProcessingFailed }
         guard let context = CGContext(
             data: nil, width: image.width, height: image.height,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                | CGBitmapInfo.byteOrder32Big.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue,
         ) else { throw MaskError.imageProcessingFailed }
 
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)

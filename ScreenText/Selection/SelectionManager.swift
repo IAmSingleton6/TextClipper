@@ -2,7 +2,8 @@ import AppKit
 
 @MainActor
 protocol SelectionManaging: AnyObject {
-    func prepare(display: SelectionDisplay, mode: CaptureMode, onEvent: @escaping (SelectionEvent<Selection>) -> Void) -> Bool
+    func prepare(display: SelectionDisplay, mode: CaptureMode, onEvent: @escaping (SelectionEvent<Selection>) -> Void)
+        -> Bool
     func setMode(_ mode: CaptureMode)
     func setCursorExclusionRect(_ rect: CGRect?)
     func hide()
@@ -20,7 +21,9 @@ final class SelectionManager: SelectionManaging {
     private var cursorTimer: Timer?
     private var cursorExclusionRect: CGRect?
 
-    func prepare(display: SelectionDisplay, mode: CaptureMode, onEvent: @escaping (SelectionEvent<Selection>) -> Void) -> Bool {
+    func prepare(display: SelectionDisplay, mode: CaptureMode,
+                 onEvent: @escaping (SelectionEvent<Selection>) -> Void) -> Bool
+    {
         self.hide()
         guard [display.frame.minX, display.frame.minY, display.frame.maxX, display.frame.maxY].allSatisfy(\.isFinite),
               display.frame.width > 0, display.frame.height > 0 else { return false }

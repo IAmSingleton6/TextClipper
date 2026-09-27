@@ -93,7 +93,12 @@ struct ScreenCaptureService: ScreenCapturing {
         switch region.shape {
         case .rectangle: return cropped
         case let .freehand(points):
-            let localPoints = try converter.maskPoints(for: points, displaySize: displaySize, imageSize: imageSize, cropRect: cropRect)
+            let localPoints = try converter.maskPoints(
+                for: points,
+                displaySize: displaySize,
+                imageSize: imageSize,
+                cropRect: cropRect,
+            )
             return try ImageMasker().applyFreehandMask(to: cropped, points: localPoints)
         }
     }

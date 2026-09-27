@@ -30,19 +30,51 @@ struct DisplayCoordinateConverterTests {
     @Test func `flips vertical origin and uses actual image scale`() throws {
         let converter = DisplayCoordinateConverter()
         let rect = CGRect(x: 20, y: 30, width: 100, height: 60)
-        #expect(try converter.pixelRect(for: rect, displaySize: .init(width: 600, height: 400), imageSize: .init(width: 600, height: 400)) == CGRect(x: 20, y: 310, width: 100, height: 60))
-        #expect(try converter.pixelRect(for: rect, displaySize: .init(width: 600, height: 400), imageSize: .init(width: 1200, height: 800)) == CGRect(x: 40, y: 620, width: 200, height: 120))
-        #expect(try converter.pixelRect(for: rect, displaySize: .init(width: 600, height: 400), imageSize: .init(width: 900, height: 1000)) == CGRect(x: 30, y: 775, width: 150, height: 150))
+        #expect(try converter.pixelRect(
+            for: rect,
+            displaySize: .init(width: 600, height: 400),
+            imageSize: .init(width: 600, height: 400),
+        ) == CGRect(x: 20, y: 310, width: 100, height: 60))
+        #expect(try converter.pixelRect(
+            for: rect,
+            displaySize: .init(width: 600, height: 400),
+            imageSize: .init(width: 1200, height: 800),
+        ) == CGRect(x: 40, y: 620, width: 200, height: 120))
+        #expect(try converter.pixelRect(
+            for: rect,
+            displaySize: .init(width: 600, height: 400),
+            imageSize: .init(width: 900, height: 1000),
+        ) == CGRect(x: 30, y: 775, width: 150, height: 150))
     }
 
     @Test func `clips to display and rounds outward`() throws {
         let converter = DisplayCoordinateConverter()
         let size = CGSize(width: 100, height: 100)
-        #expect(try converter.pixelRect(for: .init(x: -20, y: -10, width: 140, height: 130), displaySize: size, imageSize: size) == CGRect(origin: .zero, size: size))
-        #expect(try converter.pixelRect(for: .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5), displaySize: size, imageSize: .init(width: 200, height: 200)) == CGRect(x: 20, y: 78, width: 62, height: 82))
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(for: .zero, displaySize: size, imageSize: size) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(for: .init(x: 101, y: 0, width: 10, height: 10), displaySize: size, imageSize: size) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(for: .init(x: CGFloat.nan, y: 0, width: 10, height: 10), displaySize: size, imageSize: size) }
+        #expect(try converter.pixelRect(
+            for: .init(x: -20, y: -10, width: 140, height: 130),
+            displaySize: size,
+            imageSize: size,
+        ) == CGRect(origin: .zero, size: size))
+        #expect(try converter.pixelRect(
+            for: .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5),
+            displaySize: size,
+            imageSize: .init(width: 200, height: 200),
+        ) == CGRect(x: 20, y: 78, width: 62, height: 82))
+        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
+            for: .zero,
+            displaySize: size,
+            imageSize: size,
+        ) }
+        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
+            for: .init(x: 101, y: 0, width: 10, height: 10),
+            displaySize: size,
+            imageSize: size,
+        ) }
+        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
+            for: .init(x: CGFloat.nan, y: 0, width: 10, height: 10),
+            displaySize: size,
+            imageSize: size,
+        ) }
         #expect(throws: ScreenCaptureError.invalidRegion) { try converter.imageSize(displaySize: size, pixelScale: 0) }
         #expect(try converter.imageSize(displaySize: size, pixelScale: 2) == CGSize(width: 200, height: 200))
     }
@@ -58,8 +90,24 @@ struct DisplayCoordinateConverterTests {
             }
         }
         let provider = try #require(CGDataProvider(data: Data(bytes) as CFData))
-        let image = try #require(CGImage(width: 200, height: 200, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 800, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent))
-        let rect = try DisplayCoordinateConverter().pixelRect(for: .init(x: 10, y: 10, width: 20, height: 20), displaySize: .init(width: 100, height: 100), imageSize: .init(width: 200, height: 200))
+        let image = try #require(CGImage(
+            width: 200,
+            height: 200,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: 800,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent,
+        ))
+        let rect = try DisplayCoordinateConverter().pixelRect(
+            for: .init(x: 10, y: 10, width: 20, height: 20),
+            displaySize: .init(width: 100, height: 100),
+            imageSize: .init(width: 200, height: 200),
+        )
         let cropped = try #require(image.cropping(to: rect))
         #expect(cropped.width == 40 && cropped.height == 40)
         let pixels = try #require(cropped.dataProvider?.data) as Data
@@ -67,10 +115,30 @@ struct DisplayCoordinateConverterTests {
     }
 }
 
+enum TestError: Error {
+    case failedToCreateContext
+    case failedToCreateImage
+}
+
 struct TestScreenCaptureService: ScreenCapturing {
     func capture(region _: Selection) async throws -> CGImage {
-        let context = CGContext(data: nil, width: 100, height: 60, bitsPerComponent: 8, bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        return context.makeImage()!
+        guard let context = CGContext(
+            data: nil,
+            width: 100,
+            height: 60,
+            bitsPerComponent: 8,
+            bytesPerRow: 400,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw TestError.failedToCreateContext
+        }
+
+        guard let image = context.makeImage() else {
+            throw TestError.failedToCreateImage
+        }
+
+        return image
     }
 }
 
@@ -93,8 +161,19 @@ struct CaptureProcessingTests {
         let service = SuspendedCaptureService()
         let toolbar = TestCaptureToolbar()
         let manager = TestSelectionManager()
-        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: service, toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: .init(x: 0, y: 0, width: 600, height: 400),
+            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
+        )
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: service,
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+        )
         var deliveries = 0
         controller.onEvent = { event in
             switch event {
@@ -127,8 +206,19 @@ struct CaptureProcessingTests {
     @Test func `failed capture returns idle and leaves clipboard unchanged`() async throws {
         let service = SuspendedCaptureService()
         let manager = TestSelectionManager()
-        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: service, toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: .init(x: 0, y: 0, width: 600, height: 400),
+            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
+        )
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: service,
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: { display },
+        )
         var failed = false
         let changeCount = NSPasteboard.general.changeCount
         controller.onEvent = { event in
@@ -142,7 +232,11 @@ struct CaptureProcessingTests {
         }
         controller.start()
         manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(displayID: 1, rect: .init(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)))
+        manager.onEvent?(.completed(Selection(
+            displayID: 1,
+            rect: .init(x: 10, y: 10, width: 100, height: 60),
+            shape: .rectangle,
+        )))
         for _ in 0 ..< 100 where await !(service.started) {
             try await Task.sleep(for: .milliseconds(2))
         }

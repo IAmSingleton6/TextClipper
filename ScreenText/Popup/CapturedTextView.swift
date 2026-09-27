@@ -5,11 +5,11 @@ struct CapturedTextView: View {
 
     init(text: String) {
         let limit = 600
-        previewText = text.count > limit ? String(text.prefix(limit)) + "…" : text
+        self.previewText = text.count > limit ? String(text.prefix(limit)) + "…" : text
     }
 
     var body: some View {
-        Text(previewText)
+        Text(self.previewText)
             .font(.system(size: 13))
             .foregroundStyle(.primary)
             .lineLimit(4)
@@ -24,6 +24,6 @@ struct CapturedTextView: View {
                     .strokeBorder(.white.opacity(0.12), lineWidth: 1)
             }
             .accessibilityLabel("Captured text preview")
-            .accessibilityValue(previewText)
+            .accessibilityValue(self.previewText)
     }
 }

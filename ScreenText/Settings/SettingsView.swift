@@ -9,13 +9,20 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("ScreenText lives in your menu bar. Use the shortcut or choose Capture Text to select an area and copy its text.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text(
+                    "ScreenText lives in your menu bar. Use the shortcut or choose Capture Text to select an area and copy its text.",
+                )
+                .font(.callout).foregroundStyle(.secondary)
             }
             Section("Permissions") {
-                LabeledContent("Screen Recording", value: self.permissions.hasScreenRecordingAccess ? "Enabled" : "Required")
-                Text("Allow ScreenText to read text from your screen. After enabling access in System Settings, you may need to quit and reopen ScreenText.")
-                    .font(.caption).foregroundStyle(.secondary)
+                LabeledContent(
+                    "Screen Recording",
+                    value: self.permissions.hasScreenRecordingAccess ? "Enabled" : "Required",
+                )
+                Text(
+                    "Allow ScreenText to read text from your screen. After enabling access in System Settings, you may need to quit and reopen ScreenText.",
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 if self.permissions.hasScreenRecordingAccess {
                     Button("Open Screen Recording Settings") { self.permissions.openScreenRecordingSettings() }
                 } else {

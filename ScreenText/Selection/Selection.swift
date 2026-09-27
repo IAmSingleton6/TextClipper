@@ -15,8 +15,8 @@ struct Selection: Equatable, Sendable {
     }
 
     static func isValid(_ rect: CGRect) -> Bool {
-        [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy { $0.isFinite }
-            && rect.width >= minimumDimension && rect.height >= minimumDimension
+        [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy(\.isFinite)
+            && rect.width >= self.minimumDimension && rect.height >= self.minimumDimension
     }
 }
 
@@ -46,7 +46,7 @@ struct SelectionGeometry: Equatable, Sendable {
         // absolute triangle area so self-crossing paths remain valid (even-odd fill).
         let area = points.dropFirst().reduce(CGFloat.zero) { largest, point in
             max(largest, abs((second.x - first.x) * (point.y - first.y)
-                        - (second.y - first.y) * (point.x - first.x)) / 2)
+                    - (second.y - first.y) * (point.x - first.x)) / 2)
         }
         guard area.isFinite, area >= 8 else { return nil }
         return SelectionGeometry(rect: bounds, shape: .freehand(points: points))
@@ -63,7 +63,7 @@ struct SelectionDisplay {
         // Half-open edges give adjacent displays one deterministic owner.
         return displays.first { display in
             let frame = display.frame
-            return [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy { $0.isFinite }
+            return [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy(\.isFinite)
                 && frame.width > 0 && frame.height > 0
                 && point.x >= frame.minX && point.x < frame.maxX
                 && point.y >= frame.minY && point.y < frame.maxY
@@ -73,9 +73,10 @@ struct SelectionDisplay {
     static func atMouse() -> SelectionDisplay? {
         let point = NSEvent.mouseLocation
         let displays = NSScreen.screens.compactMap { screen -> SelectionDisplay? in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+            else { return nil }
             return SelectionDisplay(id: number.uint32Value, frame: screen.frame, visibleFrame: screen.visibleFrame)
         }
-        return containing(point, in: displays)
+        return self.containing(point, in: displays)
     }
 }

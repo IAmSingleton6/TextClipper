@@ -65,13 +65,18 @@ struct FreehandTests {
         for points in [polygon, Array(polygon.reversed())] {
             let geometry = try #require(SelectionGeometry.freehand(points: points))
             let selection = Selection(displayID: 42, rect: geometry.rect, shape: geometry.shape)
-            let result = try ScreenCaptureService().croppedImage(from: image, region: selection, displaySize: .init(width: 100, height: 80))
+            let result = try ScreenCaptureService().croppedImage(
+                from: image,
+                region: selection,
+                displaySize: .init(width: 100, height: 80),
+            )
             #expect(result.width == Int(ceil(70.75 * scale) - floor(10.25 * scale)))
             #expect(result.height == Int(ceil(69.75 * scale) - floor(19.25 * scale)))
             let bitmap = NSBitmapImageRep(cgImage: result)
             func color(_ x: CGFloat, _ y: CGFloat) throws -> NSColor {
                 try #require(bitmap.colorAt(x: Int(floor(x * scale) - floor(10.25 * scale)),
-                                            y: Int(floor((80 - y) * scale) - floor(19.25 * scale)))?.usingColorSpace(.deviceRGB))
+                                            y: Int(floor((80 - y) * scale) - floor(19.25 * scale)))?
+                        .usingColorSpace(.deviceRGB))
             }
             let bottom = try color(50, 20)
             let top = try color(20, 50)
@@ -110,7 +115,8 @@ struct FreehandTests {
         let rendered = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rendered)
         func overlayAlpha(_ x: Int, _ y: Int) throws -> CGFloat {
-            try #require(rendered.colorAt(x: x * rendered.pixelsWide / 100, y: y * rendered.pixelsHigh / 100)).alphaComponent
+            try #require(rendered.colorAt(x: x * rendered.pixelsWide / 100, y: y * rendered.pixelsHigh / 100))
+                .alphaComponent
         }
         #expect(try overlayAlpha(50, 20) == 0)
         #expect(try overlayAlpha(50, 80) == 0)
@@ -126,7 +132,13 @@ struct FreehandTests {
         NSColor.white.setFill()
         CGRect(x: 0, y: 0, width: 900, height: 300).fill()
         for (text, point) in [("OUTSIDE", CGPoint(x: 10, y: 270)), ("INSIDE", CGPoint(x: 350, y: 130))] {
-            (text as NSString).draw(at: point, withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular), .foregroundColor: NSColor.black])
+            (text as NSString).draw(
+                at: point,
+                withAttributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular),
+                    .foregroundColor: NSColor.black,
+                ],
+            )
         }
         NSGraphicsContext.restoreGraphicsState()
         let image = try #require(context.makeImage())
@@ -135,9 +147,15 @@ struct FreehandTests {
         let display = SelectionDisplay(id: 42, frame: .init(x: -900, y: 900, width: 900, height: 300),
                                        visibleFrame: .init(x: -900, y: 900, width: 900, height: 300))
         let manager = SelectionManager()
-        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board), ocrService: OCRService(),
-                                           captureService: FreehandImageFixture(image: image), toolbar: TestCaptureToolbar(), selectionManager: manager,
-                                           displayProvider: { display }, savedModeProvider: { .freehand })
+        let controller = CaptureController(
+            clipboardService: ClipboardService(pasteboard: board),
+            ocrService: OCRService(),
+            captureService: FreehandImageFixture(image: image),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: { display },
+            savedModeProvider: { .freehand },
+        )
         var completed = false
         controller.onEvent = { event in
             switch event {
@@ -157,7 +175,8 @@ struct FreehandTests {
                       .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200)]
         func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
             try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                                            windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                            clickCount: 1, pressure: 1))
         }
         try window.selectionView.mouseDown(with: event(.leftMouseDown, points[0]))
         for point in points.dropFirst() {
@@ -181,6 +200,10 @@ private struct FreehandImageFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 42)
-        return try ScreenCaptureService().croppedImage(from: self.image, region: region, displaySize: .init(width: 900, height: 300))
+        return try ScreenCaptureService().croppedImage(
+            from: self.image,
+            region: region,
+            displaySize: .init(width: 900, height: 300),
+        )
     }
 }

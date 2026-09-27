@@ -30,7 +30,8 @@ struct CaptureToolbarWindowTests {
         #expect(NSCursor.current == .crosshair)
         let view = try #require(panel.contentView)
         let event = try #require(NSEvent.mouseEvent(with: .mouseMoved, location: .zero,
-                                                    modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber, context: nil,
+                                                    modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber,
+                                                    context: nil,
                                                     eventNumber: 0, clickCount: 0, pressure: 0))
         view.mouseEntered(with: event)
         #expect(NSCursor.current == .arrow)

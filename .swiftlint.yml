@@ -1,0 +1,70 @@
+excluded:
+  - build
+  - DerivedData
+  - .build
+  - .swiftpm
+  - SourcePackages
+  - "**/*.generated.swift"
+
+# SwiftFormat owns formatting.
+disabled_rules:
+  - line_length
+  - trailing_whitespace
+  - trailing_comma
+  - opening_brace
+  - indentation_width
+  - vertical_parameter_alignment
+  - vertical_parameter_alignment_on_call
+  - statement_position
+  - colon
+  - comma
+  - control_statement
+  - operator_usage_whitespace
+  - closure_spacing
+  - closure_end_indentation
+  - sorted_imports
+  - identifier_name
+
+# Rules that require the analyzer.
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+# Code-quality rules.
+opt_in_rules:
+  - force_unwrapping
+  - force_cast
+  - force_try
+  - empty_count
+  - empty_string
+  - fatal_error_message
+  - first_where
+  - overridden_super_call
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - unowned_variable_capture
+  - weak_delegate
+  - unused_closure_parameter
+
+nesting:
+  type_level: 3
+
+function_body_length:
+  warning: 100
+  error: 150
+
+type_body_length:
+  warning: 500
+  error: 600
+
+file_length:
+  warning: 800
+  error: 1000
+
+type_name:
+  min_length: 4
+  max_length:
+    warning: 40
+    error: 50
+  allowed_symbols:
+    - _
