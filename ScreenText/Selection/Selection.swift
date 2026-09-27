@@ -1,9 +1,9 @@
 import AppKit
 
-struct Selection: Equatable {
+struct Selection: Equatable, Sendable {
     let displayID: CGDirectDisplayID
     // Display-local AppKit points, with the origin at the bottom-left. Pixel
-    // conversion belongs to the capture layer in Phase 6.
+    // conversion is centralized in the capture layer.
     let rect: CGRect
     let shape: SelectionShape
 
@@ -19,7 +19,7 @@ struct Selection: Equatable {
     }
 }
 
-enum SelectionShape: Equatable {
+enum SelectionShape: Equatable, Sendable {
     case rectangle
     case ellipse
 }

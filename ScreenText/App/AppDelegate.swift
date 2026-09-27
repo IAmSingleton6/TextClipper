@@ -2,12 +2,16 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let permissionManager = PermissionManager()
     private let captureController = CaptureController()
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        captureController.onCaptureFailed = { [weak self] error in
+            self?.permissionManager.showCaptureError(error)
+        }
         let onCapture: () -> Void = { [weak self] in
             self?.captureController.toggle()
         }

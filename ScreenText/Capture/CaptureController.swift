@@ -1,28 +1,37 @@
+import Foundation
+import CoreGraphics
 import KeyboardShortcuts
 
 enum CaptureState: Equatable {
     case idle
     case toolbar
     case selecting(CaptureMode)
+    case processing
 }
 
 @MainActor
 final class CaptureController {
     private(set) var state: CaptureState = .idle
     var isActive: Bool { state != .idle }
-    var onSelectionCompleted: ((Selection) -> Void)?
+    var onCaptureCompleted: ((CGImage) -> Void)?
+    var onCaptureFailed: ((Error) -> Void)?
     var selectedMode: CaptureMode { toolbarModel.mode }
     var onActivityChanged: ((Bool) -> Void)?
 
+    private let captureService: any ScreenCapturing
+    private var processingTask: Task<Void, Never>?
+    private var sessionID = UUID()
     private let toolbar: any CaptureToolbarPresenting
     private let selectionManager: any SelectionManaging
     private let displayProvider: () -> SelectionDisplay?
     private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
 
-    init(toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
+    init(captureService: any ScreenCapturing = ScreenCaptureService(),
+         toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
          selectionManager: any SelectionManaging = SelectionManager(),
          displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse) {
+        self.captureService = captureService
         self.toolbar = toolbar
         self.selectionManager = selectionManager
         self.displayProvider = displayProvider
@@ -66,12 +75,19 @@ final class CaptureController {
 
     func cancel() {
         guard isActive else { return }
+        sessionID = UUID()
+        processingTask?.cancel()
+        processingTask = nil
+        hideSelectionUI()
+        state = .idle
+        onActivityChanged?(false)
+    }
+
+    private func hideSelectionUI() {
         escapeTask?.cancel()
         escapeTask = nil
         toolbar.hide()
         selectionManager.hide()
-        state = .idle
-        onActivityChanged?(false)
     }
 
     private func selectionStarted() {
@@ -82,8 +98,23 @@ final class CaptureController {
 
     private func selectionCompleted(_ selection: Selection) {
         guard case .selecting(let mode) = state, selection.shape == mode.selectionShape else { return }
-        cancel()
-        onSelectionCompleted?(selection)
+        hideSelectionUI()
+        state = .processing
+        let id = UUID()
+        sessionID = id
+        let service = captureService
+        processingTask = Task { [weak self] in
+            do {
+                let image = try await service.capture(region: selection)
+                guard !Task.isCancelled, let self, self.sessionID == id else { return }
+                self.cancel()
+                self.onCaptureCompleted?(image)
+            } catch {
+                guard !Task.isCancelled, let self, self.sessionID == id else { return }
+                self.cancel()
+                self.onCaptureFailed?(error)
+            }
+        }
     }
 
     private func listenForEscape() {
@@ -101,5 +132,6 @@ final class CaptureController {
 
     deinit {
         escapeTask?.cancel()
+        processingTask?.cancel()
     }
 }
