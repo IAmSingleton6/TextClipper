@@ -38,7 +38,7 @@ struct MultiDisplayTests {
         ]
         let manager = SelectionManager()
         defer { manager.hide() }
-        for mode in [CaptureMode.box, .circle] {
+        for mode in [CaptureMode.box, .freehand] {
             for (start, end) in corners {
                 var result: Selection?
                 let prepared = manager.prepare(display: display, mode: mode, onStarted: {}, onCompleted: {
@@ -53,11 +53,14 @@ struct MultiDisplayTests {
                                        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
                 }
                 window.selectionView.mouseDown(with: event(.leftMouseDown, start))
+                if mode == .freehand {
+                    window.selectionView.mouseDragged(with: event(.leftMouseDragged, CGPoint(x: end.x, y: start.y)))
+                }
                 window.selectionView.mouseDragged(with: event(.leftMouseDragged, end))
                 window.selectionView.mouseUp(with: event(.leftMouseUp, end))
                 #expect(result?.displayID == 42)
                 #expect(result?.rect == CGRect(x: 100, y: 50, width: 200, height: 200))
-                #expect(result?.shape == mode.selectionShape)
+                #expect(result.map { mode.accepts($0.shape) } == true)
             }
         }
     }

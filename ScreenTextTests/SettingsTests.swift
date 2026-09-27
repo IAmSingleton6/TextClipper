@@ -12,10 +12,10 @@ struct SettingsTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = SettingsStore(defaults: defaults)
         #expect(settings.defaultMode == .box && !settings.showCapturedText)
-        settings.defaultMode = .circle
+        settings.defaultMode = .freehand
         settings.showCapturedText = true
         let restored = SettingsStore(defaults: defaults)
-        #expect(restored.defaultMode == .circle && restored.showCapturedText)
+        #expect(restored.defaultMode == .freehand && restored.showCapturedText)
         defaults.set("unknown", forKey: "defaultSelectionMode")
         #expect(SettingsStore(defaults: defaults).defaultMode == .box)
     }
@@ -25,7 +25,7 @@ struct SettingsTests {
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = SettingsStore(defaults: defaults)
-        settings.defaultMode = .circle
+        settings.defaultMode = .freehand
         let manager = SelectionManager()
         defer { manager.hide() }
         let toolbar = TestCaptureToolbar()
@@ -35,12 +35,12 @@ struct SettingsTests {
             captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager,
             displayProvider: { display }, defaultModeProvider: { settings.defaultMode })
         controller.start()
-        #expect(toolbar.model?.mode == .circle)
-        #expect(manager.window?.selectionView.mode == .circle)
+        #expect(toolbar.model?.mode == .freehand)
+        #expect(manager.window?.selectionView.mode == .freehand)
         controller.selectMode(.box)
         controller.cancel()
         controller.start()
-        #expect(controller.selectedMode == .circle)
+        #expect(controller.selectedMode == .freehand)
         controller.cancel()
         settings.defaultMode = .box
         controller.start()

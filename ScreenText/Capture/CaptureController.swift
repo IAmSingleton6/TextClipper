@@ -109,7 +109,7 @@ final class CaptureController {
     }
 
     private func selectionCompleted(_ selection: Selection) {
-        guard case .selecting(let mode) = state, selection.shape == mode.selectionShape else { return }
+        guard case .selecting(let mode) = state, mode.accepts(selection.shape) else { return }
         hideSelectionUI()
         state = .processing
         let id = UUID()

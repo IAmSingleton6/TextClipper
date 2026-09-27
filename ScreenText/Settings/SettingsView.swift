@@ -22,7 +22,7 @@ struct SettingsView: View {
             Section("Capture") {
                 Picker("Default selection", selection: $settings.defaultMode) {
                     Text("Box").tag(CaptureMode.box)
-                    Text("Circle").tag(CaptureMode.circle)
+                    Text("Draw").tag(CaptureMode.freehand)
                 }.pickerStyle(.radioGroup)
             }
             Section("Feedback") {

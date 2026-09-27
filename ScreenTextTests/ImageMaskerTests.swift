@@ -18,7 +18,10 @@ struct ImageMaskerTests {
         context.fill(CGRect(x: 0, y: height / 2, width: width, height: height - height / 2))
         let input = try #require(context.makeImage())
         let original = try #require(input.dataProvider?.data) as Data
-        let output = try ImageMasker().applyEllipseMask(to: input)
+        let output = try ImageMasker().applyFreehandMask(to: input, points: [
+            .init(x: width / 2, y: 0), .init(x: width, y: height / 2),
+            .init(x: width / 2, y: height), .init(x: 0, y: height / 2)
+        ])
         let pixels = try #require(output.dataProvider?.data) as Data
         #expect(output.width == width)
         #expect(output.height == height)

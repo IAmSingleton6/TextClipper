@@ -56,9 +56,20 @@ struct ScreenCaptureService: ScreenCapturing {
             throw ScreenCaptureError.captureFailed
         }
         try Task.checkCancellation()
-        let cropRect = try converter.pixelRect(for: region.rect, displaySize: pointSize,
-                                              imageSize: CGSize(width: image.width, height: image.height))
+        return try croppedImage(from: image, region: region, displaySize: pointSize)
+    }
+
+    // Shared with offline image tests so the exact capture crop/mask path is verified.
+    func croppedImage(from image: CGImage, region: Selection, displaySize: CGSize) throws -> CGImage {
+        let converter = DisplayCoordinateConverter()
+        let imageSize = CGSize(width: image.width, height: image.height)
+        let cropRect = try converter.pixelRect(for: region.rect, displaySize: displaySize, imageSize: imageSize)
         guard let cropped = image.cropping(to: cropRect) else { throw ScreenCaptureError.captureFailed }
-        return region.shape == .ellipse ? try ImageMasker().applyEllipseMask(to: cropped) : cropped
+        switch region.shape {
+        case .rectangle: return cropped
+        case .freehand(let points):
+            let localPoints = try converter.maskPoints(for: points, displaySize: displaySize, imageSize: imageSize, cropRect: cropRect)
+            return try ImageMasker().applyFreehandMask(to: cropped, points: localPoints)
+        }
     }
 }

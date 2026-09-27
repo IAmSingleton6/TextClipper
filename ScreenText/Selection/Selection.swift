@@ -22,7 +22,35 @@ struct Selection: Equatable, Sendable {
 
 enum SelectionShape: Equatable, Sendable {
     case rectangle
-    case ellipse
+    case freehand(points: [CGPoint])
+}
+
+struct SelectionGeometry: Equatable, Sendable {
+    let rect: CGRect
+    let shape: SelectionShape
+
+    static func bounds(for points: [CGPoint]) -> CGRect? {
+        guard !points.isEmpty, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return nil }
+        let path = CGMutablePath()
+        path.addLines(between: points)
+        return path.boundingBoxOfPath
+    }
+
+    static func freehand(points: [CGPoint]) -> SelectionGeometry? {
+        guard points.count >= 3, let bounds = bounds(for: points), Selection.isValid(bounds),
+              let first = points.first,
+              let second = points.max(by: {
+                  hypot($0.x - first.x, $0.y - first.y) < hypot($1.x - first.x, $1.y - first.y)
+              }) else { return nil }
+        // Reject clicks, straight strokes, and negligible enclosed areas. Use
+        // absolute triangle area so self-crossing paths remain valid (even-odd fill).
+        let area = points.dropFirst().reduce(CGFloat.zero) { largest, point in
+            max(largest, abs((second.x - first.x) * (point.y - first.y)
+                        - (second.y - first.y) * (point.x - first.x)) / 2)
+        }
+        guard area.isFinite, area >= 8 else { return nil }
+        return SelectionGeometry(rect: bounds, shape: .freehand(points: points))
+    }
 }
 
 struct SelectionDisplay {

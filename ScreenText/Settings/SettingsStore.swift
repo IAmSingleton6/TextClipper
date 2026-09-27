@@ -8,12 +8,13 @@ final class SettingsStore {
         didSet { defaults.set(showCapturedText, forKey: "showCapturedText") }
     }
     var defaultMode: CaptureMode {
-        didSet { defaults.set(defaultMode == .circle ? "circle" : "box", forKey: "defaultSelectionMode") }
+        didSet { defaults.set(defaultMode == .freehand ? "freehand" : "box", forKey: "defaultSelectionMode") }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         showCapturedText = defaults.bool(forKey: "showCapturedText")
-        defaultMode = defaults.string(forKey: "defaultSelectionMode") == "circle" ? .circle : .box
+        let savedMode = defaults.string(forKey: "defaultSelectionMode")
+        defaultMode = ["freehand", "circle"].contains(savedMode ?? "") ? .freehand : .box
     }
 }

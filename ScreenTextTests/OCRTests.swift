@@ -34,10 +34,13 @@ struct OCRServiceTests {
         #expect(text == lines.joined(separator: "\n"))
     }
 
-    @Test func ellipseMaskExcludesTextOutsideSelectedShape() async throws {
+    @Test func freehandMaskExcludesTextOutsideSelectedShape() async throws {
         let image = try renderedText(["OUTSIDE", "INSIDE"], dark: false,
                                      positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
-        let masked = try ImageMasker().applyEllipseMask(to: image)
+        let masked = try ImageMasker().applyFreehandMask(to: image, points: [
+            .init(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
+            .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200)
+        ])
         #expect(try await OCRService().recognizeText(from: masked) == "INSIDE")
     }
 
