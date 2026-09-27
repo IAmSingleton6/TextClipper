@@ -19,6 +19,10 @@ struct CapturedTextView: View {
             .padding(16)
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+            }
             .accessibilityLabel("Captured text preview")
             .accessibilityValue(previewText)
     }

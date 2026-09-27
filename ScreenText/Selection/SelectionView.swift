@@ -89,11 +89,15 @@ final class SelectionView: NSView {
         let dimmedArea = NSBezierPath(rect: bounds)
         dimmedArea.append(selectionPath(in: selectionRect))
         dimmedArea.windingRule = .evenOdd
-        NSColor.black.withAlphaComponent(0.3).setFill()
+        NSColor.black.withAlphaComponent(0.28).setFill()
         dimmedArea.fill()
 
         if selectionRect.width > 1 && selectionRect.height > 1 {
             let border = selectionPath(in: selectionRect.insetBy(dx: 0.5, dy: 0.5))
+            // A dark under-stroke keeps the bright edge visible on light content.
+            border.lineWidth = 3
+            NSColor.black.withAlphaComponent(0.4).setStroke()
+            border.stroke()
             border.lineWidth = 1
             NSColor.white.withAlphaComponent(0.85).setStroke()
             border.stroke()

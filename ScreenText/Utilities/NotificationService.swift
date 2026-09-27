@@ -21,6 +21,7 @@ final class NotificationService: NotificationPresenting {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.level = .floating
+        panel.appearance = NSAppearance(named: .darkAqua)
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -33,6 +34,8 @@ final class NotificationService: NotificationPresenting {
         background.wantsLayer = true
         background.layer?.cornerRadius = 12
         background.layer?.masksToBounds = true
+        background.layer?.borderWidth = 1
+        background.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
         let label = NSTextField(wrappingLabelWithString: message)
         label.font = .systemFont(ofSize: 13)
         label.alignment = .center
@@ -40,7 +43,7 @@ final class NotificationService: NotificationPresenting {
         background.addSubview(label)
         panel.contentView = background
         self.panel = panel
-        panel.orderFrontRegardless()
+        panel.showFeedback()
         dismissalTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }

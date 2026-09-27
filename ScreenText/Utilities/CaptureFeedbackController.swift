@@ -48,6 +48,7 @@ final class CaptureFeedbackController {
         switch error {
         case is ClipboardError: message = "Could not copy text to the clipboard"
         case is OCRError: message = "Could not read selected text"
+        case ScreenCaptureError.displayNotFound: message = "Display is no longer available"
         default: message = "Could not capture selection"
         }
         notifications.show(message, on: display)
