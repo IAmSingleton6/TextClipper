@@ -1,7 +1,8 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
+	classes = {
+	};
 	objectVersion = 77;
 	objects = {
 
@@ -9,38 +10,81 @@
 		B00000000000000000000001 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000002 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		C00000000000000000000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000007;
+			remoteInfo = ScreenText;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		A00000000000000000000001 /* ScreenText.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScreenText.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000001 /* ScreenTextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScreenTextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		A00000000000000000000002 /* ScreenText */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (A00000000000000000000003 /* Resource exclusions */,);
-			path = ScreenText;
-			sourceTree = "<group>";
-		};
-		C00000000000000000000002 /* ScreenTextTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = ScreenTextTests; sourceTree = "<group>"; };
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A00000000000000000000003 /* Resource exclusions */ = {
+		A00000000000000000000003 /* Exceptions for "ScreenText" folder in "ScreenText" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (Resources/Info.plist, Resources/ScreenText.entitlements,);
+			membershipExceptions = (
+				Resources/Info.plist,
+			);
 			target = A00000000000000000000007 /* ScreenText */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A00000000000000000000002 /* ScreenText */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A00000000000000000000003 /* Exceptions for "ScreenText" folder in "ScreenText" target */,
+			);
+			path = ScreenText;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000002 /* ScreenTextTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ScreenTextTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001 /* KeyboardShortcuts in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C00000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
 		A00000000000000000000004 = {
 			isa = PBXGroup;
-			children = (A00000000000000000000002 /* ScreenText */, C00000000000000000000002 /* ScreenTextTests */, A00000000000000000000005 /* Products */,);
+			children = (
+				A00000000000000000000002 /* ScreenText */,
+				C00000000000000000000002 /* ScreenTextTests */,
+				A00000000000000000000005 /* Products */,
+			);
 			sourceTree = "<group>";
 		};
 		A00000000000000000000005 /* Products */ = {
 			isa = PBXGroup;
-			children = (A00000000000000000000001 /* ScreenText.app */, C00000000000000000000001 /* ScreenTextTests.xctest */,);
+			children = (
+				A00000000000000000000001 /* ScreenText.app */,
+				C00000000000000000000001 /* ScreenTextTests.xctest */,
+			);
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -49,30 +93,50 @@
 /* Begin PBXNativeTarget section */
 		A00000000000000000000007 /* ScreenText */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000011 /* Target configurations */;
-			buildPhases = (A00000000000000000000008 /* Sources */, A00000000000000000000009 /* Frameworks */, A0000000000000000000000A /* Resources */,);
-			buildRules = ();
-			dependencies = ();
-			fileSystemSynchronizedGroups = (A00000000000000000000002 /* ScreenText */,);
+			buildConfigurationList = A00000000000000000000011 /* Build configuration list for PBXNativeTarget "ScreenText" */;
+			buildPhases = (
+				A00000000000000000000008 /* Sources */,
+				A00000000000000000000009 /* Frameworks */,
+				A0000000000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A00000000000000000000002 /* ScreenText */,
+			);
 			name = ScreenText;
-			packageProductDependencies = (B00000000000000000000002 /* KeyboardShortcuts */,);
+			packageProductDependencies = (
+				B00000000000000000000002 /* KeyboardShortcuts */,
+			);
 			productName = ScreenText;
 			productReference = A00000000000000000000001 /* ScreenText.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C00000000000000000000003 /* ScreenTextTests */ = {
-            isa = PBXNativeTarget;
-            buildConfigurationList = C0000000000000000000000A;
-            buildPhases = (C00000000000000000000004, C00000000000000000000005, C00000000000000000000006,);
-            buildRules = ();
-            dependencies = (C00000000000000000000007,);
-            fileSystemSynchronizedGroups = (C00000000000000000000002,);
-            name = ScreenTextTests;
-            packageProductDependencies = ();
-            productName = ScreenTextTests;
-            productReference = C00000000000000000000001;
-            productType = "com.apple.product-type.bundle.unit-test";
-        };
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0000000000000000000000A /* Build configuration list for PBXNativeTarget "ScreenTextTests" */;
+			buildPhases = (
+				C00000000000000000000004 /* Sources */,
+				C00000000000000000000005 /* Frameworks */,
+				C00000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C00000000000000000000007 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C00000000000000000000002 /* ScreenTextTests */,
+			);
+			name = ScreenTextTests;
+			packageProductDependencies = (
+			);
+			productName = ScreenTextTests;
+			productReference = C00000000000000000000001 /* ScreenTextTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,41 +146,75 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {A00000000000000000000007 = {CreatedOnToolsVersion = 16.0; }; };
+				TargetAttributes = {
+					A00000000000000000000007 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
 			};
-			buildConfigurationList = A00000000000000000000010 /* Project configurations */;
+			buildConfigurationList = A00000000000000000000010 /* Build configuration list for PBXProject "ScreenText" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			knownRegions = (en, Base,);
+			knownRegions = (
+				en,
+				Base,
+			);
 			mainGroup = A00000000000000000000004;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B00000000000000000000003 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A00000000000000000000005 /* Products */;
-			packageReferences = (B00000000000000000000003 /* KeyboardShortcuts */,);
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (A00000000000000000000007 /* ScreenText */, C00000000000000000000003 /* ScreenTextTests */,);
+			targets = (
+				A00000000000000000000007 /* ScreenText */,
+				C00000000000000000000003 /* ScreenTextTests */,
+			);
 		};
 /* End PBXProject section */
 
-/* Begin PBXSourcesBuildPhase section */
-		A00000000000000000000008 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		C00000000000000000000004 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-/* End PBXSourcesBuildPhase section */
-/* Begin PBXFrameworksBuildPhase section */
-		A00000000000000000000009 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000001 /* KeyboardShortcuts in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
-		C00000000000000000000005 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-/* End PBXFrameworksBuildPhase section */
 /* Begin PBXResourcesBuildPhase section */
-		A0000000000000000000000A /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		C00000000000000000000006 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A0000000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C00000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXContainerItemProxy section */
-        C00000000000000000000008 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000006; proxyType = 1; remoteGlobalIDString = A00000000000000000000007; remoteInfo = ScreenText; };
-/* End PBXContainerItemProxy section */
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C00000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
 /* Begin PBXTargetDependency section */
-        C00000000000000000000007 = {isa = PBXTargetDependency; target = A00000000000000000000007; targetProxy = C00000000000000000000008; };
+		C00000000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000007 /* ScreenText */;
+			targetProxy = C00000000000000000000008 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -129,8 +227,8 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				ONLY_ACTIVE_ARCH = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -155,14 +253,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ScreenText/Resources/ScreenText.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A8S4JBAZ2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ScreenText/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenText;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -175,14 +278,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ScreenText/Resources/ScreenText.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3A8S4JBAZ2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ScreenText/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenText;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -191,53 +299,92 @@
 			};
 			name = Release;
 		};
-        C0000000000000000000000B /* Debug */ = {
-            isa = XCBuildConfiguration;
-            buildSettings = {
-                BUNDLE_LOADER = "$(TEST_HOST)";
-                CODE_SIGN_STYLE = Automatic;
-                GENERATE_INFOPLIST_FILE = YES;
-                LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-                PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenTextTests;
-                PRODUCT_NAME = "$(TARGET_NAME)";
-                SWIFT_VERSION = 6.0;
-                TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScreenText.app/Contents/MacOS/ScreenText";
-            };
-            name = Debug;
-        };
-        C0000000000000000000000C /* Release */ = {
-            isa = XCBuildConfiguration;
-            buildSettings = {
-                BUNDLE_LOADER = "$(TEST_HOST)";
-                CODE_SIGN_STYLE = Automatic;
-                GENERATE_INFOPLIST_FILE = YES;
-                LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-                PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenTextTests;
-                PRODUCT_NAME = "$(TARGET_NAME)";
-                SWIFT_VERSION = 6.0;
-                TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScreenText.app/Contents/MacOS/ScreenText";
-            };
-            name = Release;
-        };
+		C0000000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenTextTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScreenText.app/Contents/MacOS/ScreenText";
+			};
+			name = Debug;
+		};
+		C0000000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenTextTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScreenText.app/Contents/MacOS/ScreenText";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
+/* Begin XCConfigurationList section */
+		A00000000000000000000010 /* Build configuration list for PBXProject "ScreenText" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000012 /* Debug */,
+				A00000000000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000011 /* Build configuration list for PBXNativeTarget "ScreenText" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000014 /* Debug */,
+				A00000000000000000000015 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0000000000000000000000A /* Build configuration list for PBXNativeTarget "ScreenTextTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0000000000000000000000B /* Debug */,
+				C0000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
 /* Begin XCRemoteSwiftPackageReference section */
-		B00000000000000000000003 /* KeyboardShortcuts */ = {
+		B00000000000000000000003 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
-			requirement = {kind = exactVersion; version = 3.1.0; };
+			requirement = {
+				kind = exactVersion;
+				version = 3.1.0;
+			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		B00000000000000000000002 /* KeyboardShortcuts */ = {isa = XCSwiftPackageProductDependency; package = B00000000000000000000003 /* KeyboardShortcuts */; productName = KeyboardShortcuts; };
+		B00000000000000000000002 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00000000000000000000003 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCConfigurationList section */
-		A00000000000000000000010 /* Project configurations */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000012 /* Debug */, A00000000000000000000013 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		A00000000000000000000011 /* Target configurations */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000014 /* Debug */, A00000000000000000000015 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		C0000000000000000000000A = {isa = XCConfigurationList; buildConfigurations = (C0000000000000000000000B, C0000000000000000000000C,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-/* End XCConfigurationList section */
 	};
 	rootObject = A00000000000000000000006 /* Project object */;
 }
