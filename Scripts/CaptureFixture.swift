@@ -5,9 +5,9 @@ import AppKit
 @MainActor
 final class FixtureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.red.setFill()
+        NSColor(displayP3Red: 1, green: 0, blue: 0, alpha: 1).setFill()
         CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height / 2).fill()
-        NSColor.blue.setFill()
+        NSColor(displayP3Red: 0, green: 0, blue: 1, alpha: 1).setFill()
         CGRect(x: 0, y: bounds.height / 2, width: bounds.width, height: bounds.height / 2).fill()
     }
 }
