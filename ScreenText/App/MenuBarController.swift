@@ -6,10 +6,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
 
     private let onCapture: () -> Void
+    private let onSettings: () -> Void
     private var captureItem: NSMenuItem?
 
-    init(onCapture: @escaping () -> Void) {
+    init(onCapture: @escaping () -> Void, onSettings: @escaping () -> Void) {
         self.onCapture = onCapture
+        self.onSettings = onSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureButton()
@@ -37,8 +39,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(captureItem)
         menu.addItem(.separator())
 
-        let settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: "")
-        settingsItem.isEnabled = false
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        settingsItem.keyEquivalentModifierMask = [.command]
         menu.addItem(settingsItem)
         menu.addItem(.separator())
 
@@ -66,6 +69,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func captureText() {
         onCapture()
     }
+
+    @objc private func showSettings() { onSettings() }
 
     @objc private func quit() {
         NSApp.terminate(nil)

@@ -1,14 +1,19 @@
 import Foundation
+import Observation
 
-@MainActor
+@MainActor @Observable
 final class SettingsStore {
     private let defaults: UserDefaults
-
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
-
-    // The Phase 9 preview preference. The rest of Settings follows in Phase 10.
     var showCapturedText: Bool {
-        get { defaults.bool(forKey: "showCapturedText") }
-        set { defaults.set(newValue, forKey: "showCapturedText") }
+        didSet { defaults.set(showCapturedText, forKey: "showCapturedText") }
+    }
+    var defaultMode: CaptureMode {
+        didSet { defaults.set(defaultMode == .circle ? "circle" : "box", forKey: "defaultSelectionMode") }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        showCapturedText = defaults.bool(forKey: "showCapturedText")
+        defaultMode = defaults.string(forKey: "defaultSelectionMode") == "circle" ? .circle : .box
     }
 }
