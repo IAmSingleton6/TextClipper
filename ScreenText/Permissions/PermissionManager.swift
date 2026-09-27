@@ -2,7 +2,12 @@ import AppKit
 
 @MainActor
 final class PermissionManager {
+    private let notificationService = NotificationService()
     func showCaptureError(_ error: Error) {
+        if error is ClipboardError {
+            notificationService.show("Could not copy text to the clipboard")
+            return
+        }
         let alert = NSAlert()
         if error as? ScreenCaptureError == .permissionDenied {
             alert.messageText = "Screen Recording permission required"

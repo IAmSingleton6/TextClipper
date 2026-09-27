@@ -18,6 +18,7 @@ final class CaptureController {
     var selectedMode: CaptureMode { toolbarModel.mode }
     var onActivityChanged: ((Bool) -> Void)?
 
+    private let clipboardService: any ClipboardWriting
     private let ocrService: any TextRecognizing
     private let captureService: any ScreenCapturing
     private var processingTask: Task<Void, Never>?
@@ -28,11 +29,13 @@ final class CaptureController {
     private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
 
-    init(ocrService: any TextRecognizing = OCRService(),
+    init(clipboardService: any ClipboardWriting = ClipboardService(),
+         ocrService: any TextRecognizing = OCRService(),
          captureService: any ScreenCapturing = ScreenCaptureService(),
          toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
          selectionManager: any SelectionManaging = SelectionManager(),
          displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse) {
+        self.clipboardService = clipboardService
         self.ocrService = ocrService
         self.captureService = captureService
         self.toolbar = toolbar
@@ -113,6 +116,10 @@ final class CaptureController {
                 guard !Task.isCancelled, self?.sessionID == id else { return }
                 let text = try await recognizer.recognizeText(from: image)
                 guard !Task.isCancelled, let self, self.sessionID == id else { return }
+                guard try self.clipboardService.copy(text) else {
+                    self.cancel()
+                    return
+                }
                 self.cancel()
                 self.onTextRecognized?(text)
             } catch {

@@ -5,7 +5,7 @@ import Testing
 @Suite @MainActor
 struct CaptureControllerTests {
     @Test func repeatedInvocationCancelsAndCanStartAgain() {
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -20,7 +20,7 @@ struct CaptureControllerTests {
     }
 
     @Test func startAndCancelAreIdempotent() {
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -35,7 +35,7 @@ struct CaptureControllerTests {
 
     @Test func modeButtonsUpdateTheToolbarAndNewSessionsDefaultToBox() {
         let toolbar = TestCaptureToolbar()
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         controller.selectMode(.circle)
         #expect(controller.selectedMode == .box)
         controller.start()
@@ -61,7 +61,7 @@ struct CaptureControllerTests {
     @Test func missingDisplayLeavesTheControllerIdle() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
         controller.start()
@@ -71,7 +71,7 @@ struct CaptureControllerTests {
     @Test func selectionHidesToolbarAndDeliversResultAfterTeardown() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 25, y: 40, width: 100, height: 60), shape: .rectangle)
         var completed: String?
         controller.onTextRecognized = {
@@ -97,7 +97,7 @@ struct CaptureControllerTests {
     @Test func circleDragLocksModeAndCompletesAfterTeardown() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse)
         var completed: String?
         controller.onTextRecognized = {
@@ -121,7 +121,7 @@ struct CaptureControllerTests {
 
     @Test func cancellingDragDoesNotDeliverSelection() {
         let selections = TestSelectionManager()
-        let controller = CaptureController(ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
         var completed = false
         controller.onTextRecognized = { _ in completed = true }
         controller.start()

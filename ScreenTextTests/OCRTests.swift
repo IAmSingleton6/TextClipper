@@ -93,10 +93,11 @@ actor SuspendedTextRecognizer: TextRecognizing {
 struct OCRProcessingTests {
     @Test func cancelledOCRCannotDeliverIntoNewCaptureSession() async throws {
         let recognizer = SuspendedTextRecognizer()
+        let clipboard = TestClipboardWriter()
         let manager = TestSelectionManager()
         let toolbar = TestCaptureToolbar()
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+        let controller = CaptureController(clipboardService: clipboard, ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager, displayProvider: { display })
         var deliveries = 0
         controller.onTextRecognized = { _ in deliveries += 1 }
         controller.onCaptureFailed = { _ in deliveries += 1 }
@@ -112,6 +113,7 @@ struct OCRProcessingTests {
         await recognizer.finish(.success("Late result"))
         try await Task.sleep(for: .milliseconds(20))
         #expect(deliveries == 0)
+        #expect(clipboard.texts.isEmpty)
         #expect(controller.state == .toolbar)
         controller.cancel()
     }
@@ -120,7 +122,7 @@ struct OCRProcessingTests {
         let recognizer = SuspendedTextRecognizer()
         let manager = TestSelectionManager()
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
+        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
         let clipboardChanges = NSPasteboard.general.changeCount
         var failed = false
         controller.onCaptureFailed = {
