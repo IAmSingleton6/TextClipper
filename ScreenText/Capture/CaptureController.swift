@@ -13,6 +13,8 @@ enum CaptureState: Equatable {
 final class CaptureController {
     private(set) var state: CaptureState = .idle
     var isActive: Bool { state != .idle }
+    var onCaptureStarted: ((SelectionDisplay) -> Void)?
+    var onNoTextFound: (() -> Void)?
     var onTextRecognized: ((String) -> Void)?
     var onCaptureFailed: ((Error) -> Void)?
     var selectedMode: CaptureMode { toolbarModel.mode }
@@ -69,6 +71,7 @@ final class CaptureController {
             return
         }
         state = .toolbar
+        onCaptureStarted?(display)
         onActivityChanged?(true)
         listenForEscape()
     }
@@ -118,6 +121,7 @@ final class CaptureController {
                 guard !Task.isCancelled, let self, self.sessionID == id else { return }
                 guard try self.clipboardService.copy(text) else {
                     self.cancel()
+                    self.onNoTextFound?()
                     return
                 }
                 self.cancel()

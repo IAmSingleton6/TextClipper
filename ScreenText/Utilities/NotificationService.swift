@@ -1,13 +1,19 @@
 import AppKit
 
 @MainActor
-final class NotificationService {
+protocol NotificationPresenting: AnyObject {
+    func show(_ message: String, on display: SelectionDisplay?)
+    func hide()
+}
+
+@MainActor
+final class NotificationService: NotificationPresenting {
     private var panel: NSPanel?
     private var dismissalTask: Task<Void, Never>?
 
-    func show(_ message: String) {
+    func show(_ message: String, on display: SelectionDisplay? = nil) {
         hide()
-        guard let frame = SelectionDisplay.atMouse()?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
+        guard let frame = display?.visibleFrame ?? SelectionDisplay.atMouse()?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
         let size = CGSize(width: 320, height: 64)
         let panel = FeedbackPanel(contentRect: CGRect(x: frame.midX - size.width / 2,
                                                      y: frame.minY + 96, width: size.width, height: size.height),
@@ -42,7 +48,7 @@ final class NotificationService {
         }
     }
 
-    private func hide() {
+    func hide() {
         dismissalTask?.cancel()
         dismissalTask = nil
         panel?.orderOut(nil)
