@@ -91,6 +91,29 @@ struct CaptureControllerTests {
         #expect(!controller.isActive)
     }
 
+    @Test func circleDragLocksModeAndCompletesAfterTeardown() {
+        let toolbar = TestCaptureToolbar()
+        let selections = TestSelectionManager()
+        let controller = CaptureController(toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse)
+        var completed: Selection?
+        controller.onSelectionCompleted = {
+            #expect(controller.state == .idle)
+            #expect(!toolbar.isVisible)
+            #expect(!selections.isVisible)
+            completed = $0
+        }
+        controller.start()
+        controller.selectMode(.circle)
+        selections.onStarted?()
+        #expect(controller.state == .selecting(.circle))
+        #expect(!toolbar.isVisible)
+        controller.selectMode(.box)
+        #expect(controller.selectedMode == .circle)
+        selections.onCompleted?(selection)
+        #expect(completed == selection)
+    }
+
     @Test func cancellingDragDoesNotDeliverSelection() {
         let selections = TestSelectionManager()
         let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })

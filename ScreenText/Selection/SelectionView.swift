@@ -22,12 +22,10 @@ final class SelectionView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: mode == .box ? .crosshair : .arrow)
+        addCursorRect(bounds, cursor: .crosshair)
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Circle rendering and selection are implemented in Phase 5.
-        guard mode == .box else { return }
         window?.makeFirstResponder(self)
         startPoint = clampedPoint(for: event)
         currentPoint = startPoint
@@ -73,6 +71,10 @@ final class SelectionView: NSView {
                        y: min(max(point.y, bounds.minY), bounds.maxY))
     }
 
+    private func selectionPath(in rect: CGRect) -> NSBezierPath {
+        mode == .box ? NSBezierPath(rect: rect) : NSBezierPath(ovalIn: rect)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         bounds.fill(using: .copy)
@@ -85,13 +87,13 @@ final class SelectionView: NSView {
         }
 
         let dimmedArea = NSBezierPath(rect: bounds)
-        dimmedArea.appendRect(selectionRect)
+        dimmedArea.append(selectionPath(in: selectionRect))
         dimmedArea.windingRule = .evenOdd
         NSColor.black.withAlphaComponent(0.3).setFill()
         dimmedArea.fill()
 
         if selectionRect.width > 1 && selectionRect.height > 1 {
-            let border = NSBezierPath(rect: selectionRect.insetBy(dx: 0.5, dy: 0.5))
+            let border = selectionPath(in: selectionRect.insetBy(dx: 0.5, dy: 0.5))
             border.lineWidth = 1
             NSColor.white.withAlphaComponent(0.85).setStroke()
             border.stroke()

@@ -21,6 +21,7 @@ struct Selection: Equatable {
 
 enum SelectionShape: Equatable {
     case rectangle
+    case ellipse
 }
 
 struct SelectionDisplay {

@@ -75,13 +75,13 @@ final class CaptureController {
     }
 
     private func selectionStarted() {
-        guard state == .toolbar, selectedMode == .box else { return }
-        state = .selecting(.box)
+        guard state == .toolbar else { return }
+        state = .selecting(selectedMode)
         toolbar.hide()
     }
 
     private func selectionCompleted(_ selection: Selection) {
-        guard state == .selecting(.box) else { return }
+        guard case .selecting(let mode) = state, selection.shape == mode.selectionShape else { return }
         cancel()
         onSelectionCompleted?(selection)
     }

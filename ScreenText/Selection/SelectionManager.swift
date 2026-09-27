@@ -24,14 +24,15 @@ final class SelectionManager: SelectionManaging {
             self?.hide()
             onCancelled()
         }
-        window.selectionView.onFinished = { [weak self] rect in
+        window.selectionView.onFinished = { [weak self, weak window] rect in
+            guard let shape = window?.selectionView.mode.selectionShape else { return }
             // Tear down the UI synchronously, before handing the result downstream.
             self?.hide()
             guard let rect else {
                 onCancelled()
                 return
             }
-            onCompleted(Selection(displayID: display.id, rect: rect, shape: .rectangle))
+            onCompleted(Selection(displayID: display.id, rect: rect, shape: shape))
         }
         // The clear overlay is ready for the very first drag. The toolbar is
         // subsequently ordered above it, so its controls remain clickable.

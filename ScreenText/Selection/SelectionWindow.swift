@@ -18,7 +18,7 @@ final class SelectionWindow: NSPanel {
         animationBehavior = .none
         contentView = selectionView
         selectionView.setAccessibilityLabel("Text selection area")
-        selectionView.setAccessibilityHelp("Drag a box around text. Press Escape to cancel.")
+        selectionView.setAccessibilityHelp("Drag around text using the selected shape. Press Escape to cancel.")
     }
 
     override var canBecomeKey: Bool { true }

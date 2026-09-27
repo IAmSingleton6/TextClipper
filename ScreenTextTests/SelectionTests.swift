@@ -64,7 +64,7 @@ struct SelectionTests {
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
         var cancelled = 0
         let prepare = {
-            manager.prepare(display: display, mode: .box, onStarted: {}, onCompleted: { _ in Issue.record("Unexpected result") }, onCancelled: { cancelled += 1 })
+            manager.prepare(display: display, mode: .circle, onStarted: {}, onCompleted: { _ in Issue.record("Unexpected result") }, onCancelled: { cancelled += 1 })
         }
         #expect(prepare())
         var window = try #require(manager.window)
@@ -78,6 +78,32 @@ struct SelectionTests {
         window.selectionView.mouseUp(with: try event(.leftMouseUp, at: .init(x: 21, y: 31), window: window))
         #expect(cancelled == 2)
         #expect(manager.window == nil)
+    }
+
+    @Test func ellipseSelectionNormalizesEveryDirectionAndUsesCurrentMode() throws {
+        let manager = SelectionManager()
+        let display = SelectionDisplay(id: 42, frame: .init(x: -600, y: 400, width: 600, height: 400), visibleFrame: .init(x: -600, y: 400, width: 600, height: 400))
+        let pairs: [(CGPoint, CGPoint)] = [
+            (.init(x: 20, y: 30), .init(x: 120, y: 90)),
+            (.init(x: 120, y: 90), .init(x: 20, y: 30)),
+            (.init(x: 120, y: 30), .init(x: 20, y: 90)),
+            (.init(x: 20, y: 90), .init(x: 120, y: 30))
+        ]
+        for (start, end) in pairs {
+            var completed: Selection?
+            let prepared = manager.prepare(display: display, mode: .box, onStarted: {}, onCompleted: {
+                #expect(manager.window == nil)
+                completed = $0
+            }, onCancelled: { Issue.record("Unexpected cancellation") })
+            #expect(prepared)
+            manager.setMode(.circle)
+            let window = try #require(manager.window)
+            window.selectionView.mouseDown(with: try event(.leftMouseDown, at: start, window: window))
+            window.selectionView.mouseDragged(with: try event(.leftMouseDragged, at: end, window: window))
+            window.selectionView.mouseUp(with: try event(.leftMouseUp, at: end, window: window))
+            #expect(completed == Selection(displayID: 42, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse))
+            #expect(!window.isVisible)
+        }
     }
 
     private func event(_ type: NSEvent.EventType, at point: CGPoint, window: NSWindow) throws -> NSEvent {
