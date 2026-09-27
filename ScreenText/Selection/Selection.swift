@@ -15,7 +15,8 @@ struct Selection: Equatable, Sendable {
     }
 
     static func isValid(_ rect: CGRect) -> Bool {
-        rect.width >= minimumDimension && rect.height >= minimumDimension
+        [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy { $0.isFinite }
+            && rect.width >= minimumDimension && rect.height >= minimumDimension
     }
 }
 
@@ -29,11 +30,24 @@ struct SelectionDisplay {
     let frame: CGRect
     let visibleFrame: CGRect
 
-    static func atMouse() -> SelectionDisplay? {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }),
-              let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return nil
+    static func containing(_ point: CGPoint, in displays: [SelectionDisplay]) -> SelectionDisplay? {
+        guard point.x.isFinite, point.y.isFinite else { return nil }
+        // Half-open edges give adjacent displays one deterministic owner.
+        return displays.first { display in
+            let frame = display.frame
+            return [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy { $0.isFinite }
+                && frame.width > 0 && frame.height > 0
+                && point.x >= frame.minX && point.x < frame.maxX
+                && point.y >= frame.minY && point.y < frame.maxY
         }
-        return SelectionDisplay(id: number.uint32Value, frame: screen.frame, visibleFrame: screen.visibleFrame)
+    }
+
+    static func atMouse() -> SelectionDisplay? {
+        let point = NSEvent.mouseLocation
+        let displays = NSScreen.screens.compactMap { screen -> SelectionDisplay? in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+            return SelectionDisplay(id: number.uint32Value, frame: screen.frame, visibleFrame: screen.visibleFrame)
+        }
+        return containing(point, in: displays)
     }
 }

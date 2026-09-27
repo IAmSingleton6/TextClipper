@@ -15,7 +15,8 @@ final class SelectionManager: SelectionManaging {
     func prepare(display: SelectionDisplay, mode: CaptureMode, onStarted: @escaping () -> Void,
                  onCompleted: @escaping (Selection) -> Void, onCancelled: @escaping () -> Void) -> Bool {
         hide()
-        guard display.frame.width > 0 && display.frame.height > 0 else { return false }
+        guard [display.frame.minX, display.frame.minY, display.frame.maxX, display.frame.maxY].allSatisfy({ $0.isFinite }),
+              display.frame.width > 0 && display.frame.height > 0 else { return false }
         let window = SelectionWindow(displayFrame: display.frame)
         self.window = window
         window.selectionView.mode = mode
