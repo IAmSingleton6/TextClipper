@@ -8,15 +8,22 @@ struct GlobalShortcutManagerTests {
     @Test func registersDefaultShortcutAndReleasesItOnStop() throws {
         // The hosted app also listens to this name. Temporarily disable it to establish
         // that no other application already owns the combination, then restore it.
+        let savedShortcut = KeyboardShortcuts.getShortcut(for: .captureText)
         KeyboardShortcuts.disable(.captureText)
-        defer { KeyboardShortcuts.enable(.captureText) }
-        #expect(KeyboardShortcuts.getShortcut(for: .captureText) == .init(.space, modifiers: [.command, .shift]))
+        defer {
+            KeyboardShortcuts.setShortcut(savedShortcut, for: .captureText)
+            KeyboardShortcuts.enable(.captureText)
+        }
+        let initialShortcut = KeyboardShortcuts.Name.captureText.initialShortcut
+        #expect(initialShortcut == .init(.two, modifiers: [.command, .shift]))
+        KeyboardShortcuts.setShortcut(initialShortcut, for: .captureText)
+        KeyboardShortcuts.disable(.captureText)
 
         var reference: EventHotKeyRef?
         let identifier = EventHotKeyID(signature: 0x53545453, id: 1)
         func tryRegister() -> OSStatus {
             RegisterEventHotKey(
-                UInt32(kVK_Space), UInt32(cmdKey | shiftKey), identifier,
+                UInt32(kVK_ANSI_2), UInt32(cmdKey | shiftKey), identifier,
                 GetApplicationEventTarget(), 0, &reference
             )
         }
@@ -26,7 +33,7 @@ struct GlobalShortcutManagerTests {
         }
         defer { releaseProbe() }
 
-        try #require(tryRegister() == noErr, "Another app owns Command-Shift-Space")
+        try #require(tryRegister() == noErr, "Another app owns Command-Shift-2")
         releaseProbe()
 
         let manager = GlobalShortcutManager(onCapture: {})

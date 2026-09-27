@@ -27,6 +27,17 @@ final class SelectionView: NSView {
         addCursorRect(bounds, cursor: .crosshair)
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(rect: .zero,
+            options: [.cursorUpdate, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.crosshair.set()
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         startPoint = clampedPoint(for: event)
@@ -102,9 +113,7 @@ final class SelectionView: NSView {
         NSColor.clear.setFill()
         bounds.fill(using: .copy)
         guard let selectionRect else {
-            // A minimally visible surface reliably receives the first mouse-down
-            // instead of leaving a fully transparent WindowServer region.
-            NSColor.black.withAlphaComponent(0.01).setFill()
+            NSColor.black.withAlphaComponent(0.28).setFill()
             bounds.fill()
             return
         }

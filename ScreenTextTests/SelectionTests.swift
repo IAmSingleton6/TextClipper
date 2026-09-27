@@ -4,6 +4,22 @@ import Testing
 
 @Suite @MainActor
 struct SelectionTests {
+    @Test func overlayDimsAndSetsCrosshairBeforeFirstMousePress() throws {
+        let manager = SelectionManager()
+        defer { manager.hide() }
+        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 100, height: 100),
+                                       visibleFrame: .init(x: 0, y: 0, width: 100, height: 100))
+        #expect(manager.prepare(display: display, mode: .box, onStarted: {},
+                                onCompleted: { _ in }, onCancelled: {}))
+        let view = try #require(manager.window?.selectionView)
+        #expect(view.selectionRect == nil)
+        #expect(NSCursor.current == NSCursor.crosshair)
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let color = try #require(bitmap.colorAt(x: 50, y: 50))
+        #expect(abs(color.alphaComponent - 0.28) < 0.02)
+    }
+
     @Test func normalizesAllDragDirections() {
         let pairs: [(CGPoint, CGPoint)] = [
             (.init(x: 20, y: 30), .init(x: 120, y: 90)),

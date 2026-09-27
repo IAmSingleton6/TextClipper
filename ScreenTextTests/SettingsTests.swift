@@ -11,11 +11,11 @@ struct SettingsTests {
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = SettingsStore(defaults: defaults)
-        #expect(settings.defaultMode == .box && !settings.showCapturedText)
+        #expect(settings.defaultMode == .box && settings.showCapturedText)
         settings.defaultMode = .freehand
-        settings.showCapturedText = true
+        settings.showCapturedText = false
         let restored = SettingsStore(defaults: defaults)
-        #expect(restored.defaultMode == .freehand && restored.showCapturedText)
+        #expect(restored.defaultMode == .freehand && !restored.showCapturedText)
         defaults.set("unknown", forKey: "defaultSelectionMode")
         #expect(SettingsStore(defaults: defaults).defaultMode == .box)
     }

@@ -13,7 +13,8 @@ final class SettingsStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        showCapturedText = defaults.bool(forKey: "showCapturedText")
+        showCapturedText = defaults.object(forKey: "showCapturedText") == nil
+            ? true : defaults.bool(forKey: "showCapturedText")
         let savedMode = defaults.string(forKey: "defaultSelectionMode")
         defaultMode = ["freehand", "circle"].contains(savedMode ?? "") ? .freehand : .box
     }

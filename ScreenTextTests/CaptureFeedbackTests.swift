@@ -7,14 +7,14 @@ struct CaptureFeedbackTests {
     private let display = SelectionDisplay(id: 7, frame: CGRect(x: -1440, y: 900, width: 1440, height: 900),
                                           visibleFrame: CGRect(x: -1440, y: 900, width: 1440, height: 875))
 
-    @Test func preferenceDefaultsOffAndPersistsWithoutCapturedText() throws {
+    @Test func preferenceDefaultsOnAndPersistsWithoutCapturedText() throws {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = SettingsStore(defaults: defaults)
-        #expect(!settings.showCapturedText)
-        settings.showCapturedText = true
-        #expect(SettingsStore(defaults: defaults).showCapturedText)
+        #expect(settings.showCapturedText)
+        settings.showCapturedText = false
+        #expect(!SettingsStore(defaults: defaults).showCapturedText)
         #expect(defaults.persistentDomain(forName: name)?.count == 1)
     }
 
@@ -23,6 +23,7 @@ struct CaptureFeedbackTests {
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = SettingsStore(defaults: defaults)
+        settings.showCapturedText = false
         let popup = TestTextPopup()
         let notifications = TestNotifications()
         var permissionRequests = 0

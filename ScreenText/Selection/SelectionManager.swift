@@ -34,9 +34,11 @@ final class SelectionManager: SelectionManaging {
             }
             onCompleted(Selection(displayID: display.id, rect: geometry.rect, shape: geometry.shape))
         }
-        // The clear overlay is ready for the very first drag. The toolbar is
+        // The dimmed overlay is ready for the very first drag. The toolbar is
         // subsequently ordered above it, so its controls remain clickable.
         window.orderFrontRegardless()
+        window.displayIfNeeded()
+        NSCursor.crosshair.set()
         return true
     }
 
@@ -51,6 +53,7 @@ final class SelectionManager: SelectionManaging {
         window.selectionView.onFinished = nil
         window.selectionView.onCancelled = nil
         window.orderOut(nil)
+        NSCursor.arrow.set()
         window.contentView = nil
         self.window = nil
     }

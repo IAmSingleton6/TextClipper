@@ -16,13 +16,6 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            modeButton(.box, title: "Box", symbol: "rectangle.dashed")
-            modeButton(.freehand, title: "Draw", symbol: "lasso")
-
-            Divider()
-                .frame(height: 24)
-                .padding(.horizontal, 4)
-
             Button(action: onCancel) {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
@@ -35,6 +28,13 @@ struct CaptureToolbarView: View {
             .accessibilityLabel("Cancel capture")
             .help("Cancel (Esc)")
             .keyboardShortcut(.cancelAction)
+
+            Divider()
+                .frame(height: 24)
+                .padding(.horizontal, 4)
+
+            modeButton(.box, title: "Box", symbol: "rectangle.dashed")
+            modeButton(.freehand, title: "Draw", symbol: "lasso")
         }
         .padding(8)
         .foregroundStyle(.white)
