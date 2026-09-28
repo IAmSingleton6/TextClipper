@@ -40,3 +40,6 @@ xcuserdata/
 *~
 *.swp
 *.swo
+
+# Release packages
+dist/

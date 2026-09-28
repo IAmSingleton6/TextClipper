@@ -1,17 +1,6 @@
-#!/bin/sh
-set -eu
-
+#!/bin/bash
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-
-for tool in swiftformat swiftlint; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "pre-push: $tool is required. Install both tools with: brew install swiftlint swiftformat" >&2
-        exit 1
-    fi
-done
-
-echo "Checking Swift formatting..."
-swiftformat ScreenText ScreenTextTests Scripts --config .swiftformat --lint
-
-echo "Running SwiftLint..."
-swiftlint lint --config .swiftlint.yml --strict
+./Scripts/check.sh format
+./Scripts/check.sh lint
+./Scripts/check.sh test
