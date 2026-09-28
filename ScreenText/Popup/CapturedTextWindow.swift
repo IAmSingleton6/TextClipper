@@ -12,7 +12,12 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
     private var dismissalTask: Task<Void, Never>?
 
     init() {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false,
+        )
         title = "ScreenText Captured Text"
         backgroundColor = .clear
         isOpaque = false
@@ -36,27 +41,43 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
 
     func show(_ text: String, on display: SelectionDisplay) {
         self.hide()
+
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        let host = NSHostingView(rootView: CapturedTextView(text: text))
-        contentView = host
-        setContentSize(host.fittingSize)
-        let visible = display.visibleFrame
-        setFrameOrigin(CGPoint(x: visible.midX - frame.width / 2,
-                               y: min(visible.minY + 96, visible.maxY - frame.height)))
+        contentView = NSHostingView(rootView: CapturedTextView(text: text))
+
+        self.position(on: display)
         showFeedback()
-        self.dismissalTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            self?.hide()
-        }
+        self.scheduleDismissal()
     }
 
     func hide() {
         self.dismissalTask?.cancel()
         self.dismissalTask = nil
         orderOut(nil)
-        // Release the preview text, including the SwiftUI hosting tree.
         contentView = nil
+    }
+
+    private func position(on display: SelectionDisplay) {
+        guard let contentView else { return }
+
+        setContentSize(contentView.fittingSize)
+
+        let visible = display.visibleFrame
+        let x = visible.midX - frame.width / 2
+        let y = max(
+            visible.minY,
+            min(visible.minY + 96, visible.maxY - frame.height),
+        )
+
+        setFrameOrigin(CGPoint(x: x, y: y))
+    }
+
+    private func scheduleDismissal() {
+        self.dismissalTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.hide()
+        }
     }
 
     deinit { dismissalTask?.cancel() }
