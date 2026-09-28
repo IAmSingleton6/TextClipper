@@ -2,10 +2,10 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let settings = SettingsStore()
+    private let settings = SettingsStore(persistence: SettingsPersistence(defaults: .standard))
     private let permissionManager = PermissionManager()
 
-    private lazy var settingsWindow = SettingsWindowController(
+    private lazy var settingsWindowController = SettingsWindowController(
         settings: settings,
         permissions: permissionManager,
     )
@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.settings.lastSelectionMode ?? .box
         },
         saveMode: { [weak self] mode in
-            self?.settings.lastSelectionMode = mode
+            self?.settings.selectCaptureMode(mode)
         },
     )
 
@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .settings:
                 self.captureController.cancel()
                 self.feedbackController.hide()
-                self.settingsWindow.show()
+                self.settingsWindowController.show()
             }
         }
 
@@ -66,13 +66,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        self.shortcutManager = GlobalShortcutManager { [weak self] in
+        self.shortcutManager = GlobalShortcutManager(
+            source: KeyboardShortcutSource(name: AppShortcuts.captureText),
+        ) { [weak self] in
             self?.captureController.toggle()
         }
         self.shortcutManager?.start()
 
         if self.settings.consumeFirstLaunch() {
-            self.settingsWindow.show()
+            self.settingsWindowController.show()
         }
     }
 

@@ -56,7 +56,8 @@ struct SelectionTests {
     }
 
     @Test func `capture owns main window without showing closed settings`() async throws {
-        let settings = SettingsWindowController(settings: SettingsStore())
+        let settings =
+            SettingsWindowController(settings: SettingsStore(persistence: SettingsPersistence(defaults: .standard)))
         let settingsWindow = try #require(settings.window)
         // Reproduce a previously opened Settings window remaining AppKit's
         // remembered main window, rather than one that has never been shown.

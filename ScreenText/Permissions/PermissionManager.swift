@@ -2,20 +2,22 @@ import AppKit
 import CoreGraphics
 import Observation
 
-@MainActor @Observable
+@MainActor
+@Observable
 final class PermissionManager {
     private let checkAccess: () -> Bool
     private let requestAccess: () -> Bool
     private let openSettings: () -> Void
     private(set) var hasScreenRecordingAccess: Bool
 
-    init(checkAccess: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
-         requestAccess: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
-         openSettings: @escaping () -> Void = {
-             let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-             NSWorkspace.shared.open(url)
-         })
-    {
+    init(
+        checkAccess: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+        requestAccess: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
+        openSettings: @escaping () -> Void = {
+            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+            NSWorkspace.shared.open(url)
+        },
+    ) {
         self.checkAccess = checkAccess
         self.requestAccess = requestAccess
         self.openSettings = openSettings
@@ -45,6 +47,7 @@ final class PermissionManager {
         alert.informativeText = "ScreenText needs Screen Recording permission to read text from your screen. Enable it in System Settings, then try capturing again."
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
+
         if alert.runModal() == .alertFirstButtonReturn {
             self.openScreenRecordingSettings()
         }

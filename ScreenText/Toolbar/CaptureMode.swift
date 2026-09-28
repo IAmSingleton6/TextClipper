@@ -1,11 +1,4 @@
-enum CaptureMode: Equatable {
+enum CaptureMode: String {
     case box
     case freehand
-
-    func accepts(_ shape: SelectionShape) -> Bool {
-        switch (self, shape) {
-        case (.box, .rectangle), (.freehand, .freehand): true
-        default: false
-        }
-    }
 }

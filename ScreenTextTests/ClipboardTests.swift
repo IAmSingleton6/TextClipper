@@ -118,11 +118,11 @@ struct ClipboardProcessingTests {
         controller.start()
         let window = try #require(manager.window)
         window.selectionView.mouseDown(
-            with: makeEvent(.leftMouseDown, at: .init(x: 300, y: 200), window: window)
+            with: self.makeEvent(.leftMouseDown, at: .init(x: 300, y: 200), window: window),
         )
         #expect(!toolbar.isVisible)
         window.selectionView.mouseUp(
-            with: makeEvent(.leftMouseUp, at: .init(x: 100, y: 50), window: window)
+            with: self.makeEvent(.leftMouseUp, at: .init(x: 100, y: 50), window: window),
         )
         #expect(manager.window == nil)
         #expect(controller.state == .processing)
@@ -136,11 +136,11 @@ struct ClipboardProcessingTests {
         #expect(editor.readSelection(from: board))
         #expect(editor.string == "Hello world\nTotal: 42")
     }
-    
+
     func makeEvent(
         _ type: NSEvent.EventType,
         at point: CGPoint,
-        window: NSWindow
+        window: NSWindow,
     ) -> NSEvent {
         guard let event = NSEvent.mouseEvent(
             with: type,
@@ -151,7 +151,7 @@ struct ClipboardProcessingTests {
             context: nil,
             eventNumber: 0,
             clickCount: 1,
-            pressure: 1
+            pressure: 1,
         ) else {
             fatalError("Failed to create mouse event")
         }

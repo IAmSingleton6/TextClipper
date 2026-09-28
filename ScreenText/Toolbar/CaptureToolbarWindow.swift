@@ -4,8 +4,13 @@ import SwiftUI
 @MainActor
 protocol CaptureToolbarPresenting: AnyObject {
     var cursorExclusionRect: CGRect? { get }
-    func show(display: SelectionDisplay, model: CaptureToolbarModel,
-              onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool
+
+    func show(
+        display: SelectionDisplay,
+        mode: CaptureMode,
+        onAction: @escaping (CaptureToolbarAction) -> Void,
+    ) -> Bool
+    func setMode(_ mode: CaptureMode)
     func hide()
 }
 
@@ -22,7 +27,12 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
     }
 
     init() {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false,
+        )
         title = "ScreenText Capture"
         backgroundColor = .clear
         isOpaque = false
@@ -45,29 +55,30 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
         false
     }
 
-    func show(display: SelectionDisplay, model: CaptureToolbarModel,
-              onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool
-    {
-        let view = CaptureToolbarView(model: model, onAction: onAction)
+    func show(
+        display: SelectionDisplay,
+        mode: CaptureMode,
+        onAction: @escaping (CaptureToolbarAction) -> Void,
+    ) -> Bool {
+        let view = CaptureToolbarView(mode: mode, onAction: onAction)
         let hostingView = CaptureToolbarHostingView(rootView: view)
         contentView = hostingView
         setContentSize(hostingView.fittingSize)
         setFrame(Self.positionedFrame(size: frame.size, visibleFrame: display.visibleFrame), display: true)
-        // Ordering without activation leaves the user's current application focused.
         orderFrontRegardless()
         displayIfNeeded()
-        self.updateCaptureCursor()
-        // Hosting-view layout and window ordering can reset the cursor later
-        // in this event. Apply it again once that work has completed.
-        DispatchQueue.main.async { [weak self] in
-            guard let self, isVisible else { return }
-            self.updateCaptureCursor()
+
+        hostingView.updateCaptureCursor()
+        // AppKit may reset the cursor as window ordering finishes.
+        DispatchQueue.main.async { [weak hostingView] in
+            hostingView?.updateCaptureCursor()
         }
         return true
     }
 
-    private func updateCaptureCursor() {
-        (frame.contains(NSEvent.mouseLocation) ? NSCursor.arrow : NSCursor.crosshair).set()
+    func setMode(_ mode: CaptureMode) {
+        guard let hostingView = contentView as? CaptureToolbarHostingView else { return }
+        hostingView.rootView = CaptureToolbarView(mode: mode, onAction: hostingView.rootView.onAction)
     }
 
     func hide() {
@@ -87,6 +98,11 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
 }
 
 private final class CaptureToolbarHostingView: NSHostingView<CaptureToolbarView> {
+    func updateCaptureCursor() {
+        guard let window, window.isVisible else { return }
+        (window.frame.contains(NSEvent.mouseLocation) ? NSCursor.arrow : NSCursor.crosshair).set()
+    }
+
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
         true
     }
@@ -98,9 +114,14 @@ private final class CaptureToolbarHostingView: NSHostingView<CaptureToolbarView>
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(rect: .zero,
-                                       options: [.cursorUpdate, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                                       owner: self, userInfo: nil))
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.cursorUpdate, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self,
+                userInfo: nil,
+            ),
+        )
     }
 
     override func cursorUpdate(with _: NSEvent) {

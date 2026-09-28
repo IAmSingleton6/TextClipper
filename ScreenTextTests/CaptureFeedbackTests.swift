@@ -11,10 +11,10 @@ struct CaptureFeedbackTests {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = SettingsStore(defaults: defaults)
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
         #expect(settings.showCapturedText)
         settings.showCapturedText = false
-        #expect(!SettingsStore(defaults: defaults).showCapturedText)
+        #expect(!SettingsStore(persistence: SettingsPersistence(defaults: defaults)).showCapturedText)
         #expect(defaults.persistentDomain(forName: name)?.count == 1)
     }
 
@@ -22,7 +22,7 @@ struct CaptureFeedbackTests {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = SettingsStore(defaults: defaults)
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
         settings.showCapturedText = false
         let popup = TestTextPopup()
         let notifications = TestNotifications()
@@ -31,7 +31,7 @@ struct CaptureFeedbackTests {
             settings: settings,
             popup: popup,
             notifications: notifications,
-            onPermissionRequired: { permissionRequests += 1 }
+            onPermissionRequired: { permissionRequests += 1 },
         )
         feedback.beginCapture(on: self.display)
         feedback.copiedText("Hello")

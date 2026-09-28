@@ -1,42 +1,28 @@
-import KeyboardShortcuts
-
-extension KeyboardShortcuts.Name {
-    static let captureText = Self(
-        "captureText",
-        initial: .init(.two, modifiers: [.command, .shift]),
-    )
-}
-
 @MainActor
 final class GlobalShortcutManager {
+    private let source: any ShortcutSource
     private let onCapture: () -> Void
-    private var listeningTask: Task<Void, Never>?
+    private var isListening = false
 
-    init(onCapture: @escaping () -> Void) {
+    init(source: any ShortcutSource, onCapture: @escaping () -> Void) {
+        self.source = source
         self.onCapture = onCapture
     }
 
     func start() {
-        guard self.listeningTask == nil else { return }
-        KeyboardShortcuts.enable(.captureText)
-        let events = KeyboardShortcuts.events(for: .captureText)
-        let onCapture = onCapture
-        self.listeningTask = Task {
-            // Key-up delivers one invocation per press, even when the key is held.
-            for await event in events where event == .keyUp {
-                guard !Task.isCancelled else { return }
-                onCapture()
-            }
-        }
+        guard !self.isListening else { return }
+        self.isListening = true
+        self.source.startListening(onTrigger: self.onCapture)
     }
 
     func stop() {
-        self.listeningTask?.cancel()
-        self.listeningTask = nil
-        KeyboardShortcuts.disable(.captureText)
+        guard self.isListening else { return }
+        self.isListening = false
+        self.source.stopListening()
     }
 
-    deinit {
-        listeningTask?.cancel()
+    isolated deinit {
+        guard self.isListening else { return }
+        source.stopListening()
     }
 }

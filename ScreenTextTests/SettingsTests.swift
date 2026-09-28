@@ -10,10 +10,10 @@ struct SettingsTests {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = SettingsStore(defaults: defaults)
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
         #expect(settings.consumeFirstLaunch())
         #expect(!settings.consumeFirstLaunch())
-        #expect(!SettingsStore(defaults: defaults).consumeFirstLaunch())
+        #expect(!SettingsStore(persistence: SettingsPersistence(defaults: defaults)).consumeFirstLaunch())
     }
 
     @Test func `permission request and external changes refresh status`() {
@@ -41,22 +41,44 @@ struct SettingsTests {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = SettingsStore(defaults: defaults)
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
         #expect(settings.lastSelectionMode == .box && settings.showCapturedText)
-        settings.lastSelectionMode = .freehand
+        settings.selectCaptureMode(.freehand)
         settings.showCapturedText = false
-        let restored = SettingsStore(defaults: defaults)
+        let restored = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
         #expect(restored.lastSelectionMode == .freehand && !restored.showCapturedText)
-        defaults.set("unknown", forKey: "defaultSelectionMode")
-        #expect(SettingsStore(defaults: defaults).lastSelectionMode == .box)
+        defaults.set("unknown", forKey: "lastSelectionMode")
+        #expect(SettingsStore(persistence: SettingsPersistence(defaults: defaults)).lastSelectionMode == .box)
+    }
+
+    @Test(arguments: [CaptureMode.freehand, .box])
+    func `capture modes use their raw values in existing storage`(mode: CaptureMode) throws {
+        let name = "com.screentext.tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(mode.rawValue, forKey: "lastSelectionMode")
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
+        #expect(settings.lastSelectionMode == mode)
+        settings.selectCaptureMode(mode == .box ? .freehand : .box)
+        #expect(defaults.string(forKey: "lastSelectionMode") == settings.lastSelectionMode.rawValue)
+        #expect(SettingsStore(persistence: SettingsPersistence(defaults: defaults)).lastSelectionMode == settings
+            .lastSelectionMode)
+    }
+
+    @Test func `circle is not a supported capture mode`() throws {
+        let name = "com.screentext.tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("circle", forKey: "lastSelectionMode")
+        #expect(SettingsStore(persistence: SettingsPersistence(defaults: defaults)).lastSelectionMode == .box)
     }
 
     @Test func `capture uses saved mode on each new session`() throws {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let settings = SettingsStore(defaults: defaults)
-        settings.lastSelectionMode = .freehand
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
+        settings.selectCaptureMode(.freehand)
         let manager = SelectionManager()
         defer { manager.hide() }
         let toolbar = TestCaptureToolbar()
@@ -67,43 +89,43 @@ struct SettingsTests {
                                            selectionManager: manager,
                                            displayProvider: { display },
                                            savedModeProvider: { settings.lastSelectionMode },
-                                           saveMode: { settings.lastSelectionMode = $0 })
+                                           saveMode: { settings.selectCaptureMode($0) })
         controller.start()
-        #expect(toolbar.model?.mode == .freehand)
+        #expect(toolbar.mode == .freehand)
         #expect(manager.window?.selectionView.mode == .freehand)
         controller.selectMode(.box)
-        #expect(SettingsStore(defaults: defaults).lastSelectionMode == .box)
+        #expect(SettingsStore(persistence: SettingsPersistence(defaults: defaults)).lastSelectionMode == .box)
         controller.cancel()
         controller.start()
         #expect(controller.selectedMode == .box)
         controller.cancel()
-        settings.lastSelectionMode = .freehand
+        settings.selectCaptureMode(.freehand)
         controller.start()
-        #expect(toolbar.model?.mode == .freehand)
+        #expect(toolbar.mode == .freehand)
         #expect(manager.window?.selectionView.mode == .freehand)
         controller.selectMode(.freehand)
-        #expect(SettingsStore(defaults: defaults).lastSelectionMode == .freehand)
+        #expect(SettingsStore(persistence: SettingsPersistence(defaults: defaults)).lastSelectionMode == .freehand)
         controller.cancel()
     }
 
     @Test func `login status reflects approval external changes and failures`() {
         let service = TestLoginItem()
         let controller = LoginItemController(service: service)
-        #expect(!controller.isOn && service.registerCount == 0)
+        #expect(!controller.isEnabled && service.registerCount == 0)
         service.nextStatus = .requiresApproval
-        controller.setEnabled(true)
-        #expect(controller.isOn && controller.status == .requiresApproval)
+        controller.isEnabled = true
+        #expect(controller.isEnabled && controller.status == .requiresApproval)
         #expect(service.registerCount == 1)
         service.status = .enabled
         controller.refresh()
         #expect(controller.status == .enabled)
         service.fails = true
         controller.setEnabled(false)
-        #expect(controller.isOn && controller.message != nil)
+        #expect(controller.isEnabled && controller.message != nil)
         service.fails = false
         service.nextStatus = .notRegistered
         controller.setEnabled(false)
-        #expect(!controller.isOn && controller.message == nil)
+        #expect(!controller.isEnabled && controller.message == nil)
         #expect(service.unregisterCount == 2)
     }
 
@@ -111,8 +133,10 @@ struct SettingsTests {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let controller = SettingsWindowController(settings: SettingsStore(defaults: defaults),
-                                                  login: LoginItemController(service: TestLoginItem()))
+        let controller = SettingsWindowController(
+            settings: SettingsStore(persistence: SettingsPersistence(defaults: defaults)),
+            login: LoginItemController(service: TestLoginItem()),
+        )
         let window = try #require(controller.window)
         #expect(window.title == "ScreenText Settings")
         #expect(window.contentView?.frame.size == CGSize(width: 420, height: 620))

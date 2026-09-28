@@ -20,7 +20,7 @@ struct SettingsView: View {
                     value: self.permissions.hasScreenRecordingAccess ? "Enabled" : "Required",
                 )
                 Text(
-                    "Allow ScreenText to read text from your screen. After enabling access in System Settings, you may need to quit and reopen ScreenText.",
+                    "Allow ScreenText to capture the contents of your screen. After enabling access in System Settings, you may need to quit and reopen ScreenText.",
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 if self.permissions.hasScreenRecordingAccess {
@@ -30,8 +30,8 @@ struct SettingsView: View {
                 }
             }
             Section("General") {
-                KeyboardShortcuts.Recorder("Shortcut", name: .captureText)
-                Toggle("Launch at login", isOn: Binding(get: { self.login.isOn }, set: { self.login.setEnabled($0) }))
+                KeyboardShortcuts.Recorder("Shortcut", name: AppShortcuts.captureText)
+                Toggle("Launch at login", isOn: self.$login.isEnabled)
                 if self.login.status == .requiresApproval {
                     Text("Allow ScreenText in Login Items to finish enabling launch at login.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     Text(message).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Section("Feedback") {
+            Section("Behaviour") {
                 Toggle("Show captured text", isOn: self.$settings.showCapturedText)
             }
         }

@@ -1,33 +1,30 @@
-import Foundation
 import Observation
 
-@MainActor @Observable
+@MainActor
+@Observable
 final class SettingsStore {
-    private let defaults: UserDefaults
+    private let persistence: SettingsPersistence
+    private(set) var lastSelectionMode: CaptureMode
+
     var showCapturedText: Bool {
-        didSet { self.defaults.set(self.showCapturedText, forKey: "showCapturedText") }
+        didSet { self.persistence.showCapturedText = self.showCapturedText }
     }
 
-    /// Keep the existing storage key so upgrades retain the last used mode.
-    var lastSelectionMode: CaptureMode {
-        didSet { self.defaults.set(
-            self.lastSelectionMode == .freehand ? "freehand" : "box",
-            forKey: "defaultSelectionMode",
-        ) }
+    init(persistence: SettingsPersistence) {
+        self.persistence = persistence
+        self.showCapturedText = persistence.showCapturedText
+        self.lastSelectionMode = persistence.lastSelectionMode
     }
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        self.showCapturedText = defaults.object(forKey: "showCapturedText") == nil
-            ? true : defaults.bool(forKey: "showCapturedText")
-        let savedMode = defaults.string(forKey: "defaultSelectionMode")
-        self.lastSelectionMode = ["freehand", "circle"].contains(savedMode ?? "") ? .freehand : .box
+    func selectCaptureMode(_ mode: CaptureMode) {
+        self.lastSelectionMode = mode
+        self.persistence.lastSelectionMode = mode
     }
 
     /// Show setup once per user, including when upgrading from a version without setup.
     func consumeFirstLaunch() -> Bool {
-        guard !self.defaults.bool(forKey: "hasShownInitialSettings") else { return false }
-        self.defaults.set(true, forKey: "hasShownInitialSettings")
+        guard !self.persistence.hasShownInitialSettings else { return false }
+        self.persistence.hasShownInitialSettings = true
         return true
     }
 }

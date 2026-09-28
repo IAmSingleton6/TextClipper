@@ -12,7 +12,8 @@ struct CaptureWindowFilterTests {
     }
 
     @Test func `settings is capturable but capture and feedback panels are excluded`() throws {
-        let settings = SettingsWindowController(settings: SettingsStore())
+        let settings =
+            SettingsWindowController(settings: SettingsStore(persistence: SettingsPersistence(defaults: .standard)))
         let window = try #require(settings.window)
         let panels: [NSWindow] = [
             CaptureToolbarWindow(),
@@ -129,7 +130,7 @@ struct TestScreenCaptureService: ScreenCapturing {
             bitsPerComponent: 8,
             bytesPerRow: 400,
             space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
         ) else {
             throw TestError.failedToCreateContext
         }

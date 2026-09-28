@@ -8,7 +8,7 @@ final class CaptureFeedbackController {
     private let onPermissionRequired: () -> Void
     private var display: SelectionDisplay?
 
-    init(settings: SettingsStore = SettingsStore(),
+    init(settings: SettingsStore = SettingsStore(persistence: SettingsPersistence(defaults: .standard)),
          popup: any CapturedTextPresenting = CapturedTextWindow(),
          notifications: any NotificationPresenting = NotificationService(),
          onPermissionRequired: @escaping () -> Void)

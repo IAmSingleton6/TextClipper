@@ -81,10 +81,10 @@ struct CaptureControllerTests {
         #expect(controller.selectedMode == .box)
         controller.start()
         #expect(toolbar.isVisible)
-        #expect(toolbar.model?.mode == .box)
+        #expect(toolbar.mode == .box)
         toolbar.onAction?(.selectMode(.freehand))
         #expect(controller.selectedMode == .freehand)
-        #expect(toolbar.model?.mode == .freehand)
+        #expect(toolbar.mode == .freehand)
         toolbar.onAction?(.selectMode(.box))
         #expect(controller.selectedMode == .box)
         toolbar.onAction?(.selectMode(.freehand))
@@ -245,20 +245,24 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
     var isVisible = false
     var showCount = 0
     var hideCount = 0
-    var model: CaptureToolbarModel?
+    var mode: CaptureMode?
     var onAction: ((CaptureToolbarAction) -> Void)?
 
     func show(
         display _: SelectionDisplay,
-        model: CaptureToolbarModel,
+        mode: CaptureMode,
         onAction: @escaping (CaptureToolbarAction) -> Void,
     ) -> Bool {
         guard self.canShow else { return false }
-        self.model = model
+        self.mode = mode
         self.onAction = onAction
         self.isVisible = true
         self.showCount += 1
         return true
+    }
+
+    func setMode(_ mode: CaptureMode) {
+        self.mode = mode
     }
 
     func hide() {
