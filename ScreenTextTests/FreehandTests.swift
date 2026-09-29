@@ -65,9 +65,9 @@ struct FreehandTests {
         for points in [polygon, Array(polygon.reversed())] {
             let geometry = try #require(SelectionGeometry.freehand(points: points))
             let selection = Selection(displayID: 42, rect: geometry.rect, shape: geometry.shape)
-            let result = try ScreenCaptureService().croppedImage(
-                from: image,
-                region: selection,
+            let result = try CaptureImageCropper().crop(
+                image,
+                to: selection,
                 displaySize: .init(width: 100, height: 80),
             )
             #expect(result.width == Int(ceil(70.75 * scale) - floor(10.25 * scale)))
@@ -202,9 +202,9 @@ private struct FreehandImageFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 42)
-        return try ScreenCaptureService().croppedImage(
-            from: self.image,
-            region: region,
+        return try CaptureImageCropper().crop(
+            self.image,
+            to: region,
             displaySize: .init(width: 900, height: 300),
         )
     }

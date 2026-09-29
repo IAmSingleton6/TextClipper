@@ -20,6 +20,13 @@ final class SelectionWindow: NSWindow {
         self.selectionView = SelectionView(frame: CGRect(origin: .zero, size: displayFrame.size))
         super.init(contentRect: displayFrame, styleMask: [.borderless], backing: .buffered, defer: false)
 
+        self.configureOverlay()
+        contentView = self.selectionView
+        self.selectionView.setAccessibilityLabel("Text selection area")
+        self.selectionView.setAccessibilityHelp("Drag around text using the selected shape. Press Escape to cancel.")
+    }
+
+    private func configureOverlay() {
         title = "ScreenText Selection"
         backgroundColor = .clear
         isOpaque = false
@@ -30,15 +37,11 @@ final class SelectionWindow: NSWindow {
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
-        contentView = self.selectionView
-
-        self.selectionView.setAccessibilityLabel("Text selection area")
-        self.selectionView.setAccessibilityHelp("Drag around text using the selected shape. Press Escape to cancel.")
     }
 
     func presentForSelection() {
-        // Claim main and key status before app activation so another window
-        // does not take focus when the app becomes active.
+        // Claim main and key status so another window does not take focus
+        // when the activation request completes.
         makeKeyAndOrderFront(nil)
         makeMain()
         orderFrontRegardless()
@@ -75,13 +78,17 @@ final class SelectionWindow: NSWindow {
     }
 
     func dismissSelection() {
-        self.cursorTimer?.invalidate()
-        self.cursorTimer = nil
+        self.stopCursorMaintenance()
         self.cursorExclusionRect = nil
         self.selectionView.reset()
         self.onSelectionEvent = nil
         orderOut(nil)
         NSCursor.arrow.set()
+    }
+
+    private func stopCursorMaintenance() {
+        self.cursorTimer?.invalidate()
+        self.cursorTimer = nil
     }
 
     private func updateCursor() {

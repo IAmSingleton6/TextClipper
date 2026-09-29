@@ -3,81 +3,82 @@ import CoreGraphics
 @testable import ScreenText
 import Testing
 
-@MainActor
-struct CaptureWindowFilterTests {
-    @Test func `invalid and oversized window numbers are excluded`() {
-        let numbers = [-1, 0, 42, Int(CGWindowID.max), Int(CGWindowID.max) + 1, Int.max]
-        let ids = numbers.compactMap { ScreenCaptureService.capturableWindowID(for: $0) }
-        #expect(ids == [42, CGWindowID.max])
-    }
-
-    @Test func `settings is capturable but capture and feedback panels are excluded`() throws {
-        let settings =
-            SettingsWindowController(settings: SettingsStore(persistence: SettingsPersistence(defaults: .standard)))
-        let window = try #require(settings.window)
-        let panels: [NSWindow] = [
-            CaptureToolbarWindow(),
-            SelectionWindow(displayFrame: .init(x: 0, y: 0, width: 600, height: 400)),
-            CapturedTextWindow(),
-            NSPanel(contentRect: .init(x: 0, y: 0, width: 100, height: 60),
-                    styleMask: .borderless, backing: .buffered, defer: false),
-        ]
-        let ids = ScreenCaptureService.capturableWindowIDs(in: [window] + panels)
-        #expect(ids == Set([CGWindowID(window.windowNumber)]))
-    }
-}
-
-struct DisplayCoordinateConverterTests {
+struct SelectionCropCoordinatesTests {
     @Test func `flips vertical origin and uses actual image scale`() throws {
-        let converter = DisplayCoordinateConverter()
+        let displaySize = CGSize(width: 600, height: 400)
         let rect = CGRect(x: 20, y: 30, width: 100, height: 60)
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
-            imageSize: .init(width: 600, height: 400),
-        ) == CGRect(x: 20, y: 310, width: 100, height: 60))
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
-            imageSize: .init(width: 1200, height: 800),
-        ) == CGRect(x: 40, y: 620, width: 200, height: 120))
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
-            imageSize: .init(width: 900, height: 1000),
-        ) == CGRect(x: 30, y: 775, width: 150, height: 150))
+        let native = try SelectionCoordinates.displayRectToImagePixelRect(
+            rect,
+            displayPointSize: displaySize,
+            imagePixelSize: displaySize,
+        )
+        let doubled = try SelectionCoordinates.displayRectToImagePixelRect(
+            rect,
+            displayPointSize: displaySize,
+            imagePixelSize: .init(width: 1200, height: 800),
+        )
+        let uneven = try SelectionCoordinates.displayRectToImagePixelRect(
+            rect,
+            displayPointSize: displaySize,
+            imagePixelSize: .init(width: 900, height: 1000),
+        )
+        #expect(native == CGRect(x: 20, y: 310, width: 100, height: 60))
+        #expect(doubled == CGRect(x: 40, y: 620, width: 200, height: 120))
+        #expect(uneven == CGRect(x: 30, y: 775, width: 150, height: 150))
     }
 
     @Test func `clips to display and rounds outward`() throws {
-        let converter = DisplayCoordinateConverter()
         let size = CGSize(width: 100, height: 100)
-        #expect(try converter.pixelRect(
-            for: .init(x: -20, y: -10, width: 140, height: 130),
-            displaySize: size,
-            imageSize: size,
-        ) == CGRect(origin: .zero, size: size))
-        #expect(try converter.pixelRect(
-            for: .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5),
-            displaySize: size,
-            imageSize: .init(width: 200, height: 200),
-        ) == CGRect(x: 20, y: 78, width: 62, height: 82))
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .zero,
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .init(x: 101, y: 0, width: 10, height: 10),
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .init(x: CGFloat.nan, y: 0, width: 10, height: 10),
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.imageSize(displaySize: size, pixelScale: 0) }
-        #expect(try converter.imageSize(displaySize: size, pixelScale: 2) == CGSize(width: 200, height: 200))
+        let clipped = try SelectionCoordinates.displayRectToImagePixelRect(
+            .init(x: -20, y: -10, width: 140, height: 130),
+            displayPointSize: size,
+            imagePixelSize: size,
+        )
+        let fractional = try SelectionCoordinates.displayRectToImagePixelRect(
+            .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5),
+            displayPointSize: size,
+            imagePixelSize: .init(width: 200, height: 200),
+        )
+        #expect(clipped == CGRect(origin: .zero, size: size))
+        #expect(fractional == CGRect(x: 20, y: 78, width: 62, height: 82))
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try SelectionCoordinates.displayRectToImagePixelRect(
+                .zero,
+                displayPointSize: size,
+                imagePixelSize: size,
+            )
+        }
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try SelectionCoordinates.displayRectToImagePixelRect(
+                .init(x: 101, y: 0, width: 10, height: 10),
+                displayPointSize: size,
+                imagePixelSize: size,
+            )
+        }
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try SelectionCoordinates.displayRectToImagePixelRect(
+                .init(x: CGFloat.nan, y: 0, width: 10, height: 10),
+                displayPointSize: size,
+                imagePixelSize: size,
+            )
+        }
+    }
+
+    @Test func `mask path uses coordinates inside the cropped image`() throws {
+        let displaySize = CGSize(width: 100, height: 100)
+        let imageSize = CGSize(width: 200, height: 200)
+        let imageCropRect = try SelectionCoordinates.displayRectToImagePixelRect(
+            CGRect(x: 10, y: 10, width: 20, height: 20),
+            displayPointSize: displaySize,
+            imagePixelSize: imageSize,
+        )
+        let maskPoints = try SelectionCoordinates.displayPointsToCroppedImagePoints(
+            [CGPoint(x: 10, y: 10), CGPoint(x: 30, y: 30)],
+            imageCropRect: imageCropRect,
+            displayPointSize: displaySize,
+            imagePixelSize: imageSize,
+        )
+        #expect(maskPoints == [CGPoint(x: 0, y: 0), CGPoint(x: 40, y: 40)])
     }
 
     @Test func `crop reads selected pixels rather than mirrored region`() throws {
@@ -104,15 +105,26 @@ struct DisplayCoordinateConverterTests {
             shouldInterpolate: false,
             intent: .defaultIntent,
         ))
-        let rect = try DisplayCoordinateConverter().pixelRect(
-            for: .init(x: 10, y: 10, width: 20, height: 20),
-            displaySize: .init(width: 100, height: 100),
-            imageSize: .init(width: 200, height: 200),
+        let imageCropRect = try SelectionCoordinates.displayRectToImagePixelRect(
+            .init(x: 10, y: 10, width: 20, height: 20),
+            displayPointSize: .init(width: 100, height: 100),
+            imagePixelSize: .init(width: 200, height: 200),
         )
-        let cropped = try #require(image.cropping(to: rect))
+        let cropped = try #require(image.cropping(to: imageCropRect))
         #expect(cropped.width == 40 && cropped.height == 40)
         let pixels = try #require(cropped.dataProvider?.data) as Data
         #expect(pixels[0] == 255 && pixels[2] == 0)
+    }
+}
+
+struct ScreenshotSizingTests {
+    @Test func `rounds requested pixels up and rejects invalid scale`() throws {
+        let displaySize = CGSize(width: 100, height: 100)
+        #expect(try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: displaySize, pointPixelScale: 1.25)
+            == CGSize(width: 125, height: 125))
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: displaySize, pointPixelScale: 0)
+        }
     }
 }
 

@@ -25,6 +25,8 @@ struct CaptureProcessor: CaptureProcessing {
     }
 
     func process(_ selection: Selection) async throws -> CaptureProcessingResult {
+        try Task.checkCancellation()
+
         let image = try await self.captureService.capture(region: selection)
         try Task.checkCancellation()
 
