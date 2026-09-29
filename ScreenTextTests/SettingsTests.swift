@@ -144,6 +144,45 @@ struct SettingsTests {
         #expect(controller.window === window)
         #expect(!window.isReleasedWhenClosed)
     }
+
+    @Test func `settings refreshes external statuses when shown and reactivated`() throws {
+        let name = "com.screentext.tests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var allowed = false
+        let permissions = PermissionManager(checkAccess: { allowed })
+        let service = TestLoginItem()
+        let login = LoginItemController(service: service)
+        let controller = SettingsWindowController(
+            settings: SettingsStore(persistence: SettingsPersistence(defaults: defaults)),
+            permissions: permissions,
+            login: login,
+        )
+        let window = try #require(controller.window)
+        defer { window.close() }
+
+        allowed = true
+        service.status = .enabled
+        controller.show()
+        #expect(permissions.hasScreenRecordingAccess)
+        #expect(login.status == .enabled)
+
+        allowed = false
+        service.status = .notRegistered
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+        #expect(!permissions.hasScreenRecordingAccess)
+        #expect(login.status == .notRegistered)
+
+        window.orderOut(nil)
+        allowed = true
+        service.status = .enabled
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+        #expect(!permissions.hasScreenRecordingAccess)
+        #expect(login.status == .notRegistered)
+        controller.show()
+        #expect(permissions.hasScreenRecordingAccess)
+        #expect(login.status == .enabled)
+    }
 }
 
 @MainActor private final class TestLoginItem: LoginItemManaging {

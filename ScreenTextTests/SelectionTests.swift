@@ -101,6 +101,23 @@ struct SelectionTests {
         #expect(NSCursor.current == .arrow)
     }
 
+    @Test func `invalid replacement preserves active selection and mode updates`() throws {
+        let manager = SelectionManager()
+        defer { manager.hide() }
+        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
+                                       visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+        #expect(manager.prepare(display: display, mode: .box, onEvent: { _ in }))
+        let window = try #require(manager.window)
+        manager.setMode(.freehand)
+        #expect(window.mode == .freehand)
+
+        let invalid = SelectionDisplay(id: 2, frame: .zero, visibleFrame: .zero)
+        #expect(!manager.prepare(display: invalid, mode: .box, onEvent: { _ in }))
+        #expect(manager.window === window)
+        #expect(window.isVisible)
+        #expect(window.mode == .freehand)
+    }
+
     @Test func `normalizes all drag directions`() {
         let pairs: [(CGPoint, CGPoint)] = [
             (.init(x: 20, y: 30), .init(x: 120, y: 90)),

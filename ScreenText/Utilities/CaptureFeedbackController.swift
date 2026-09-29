@@ -8,11 +8,12 @@ final class CaptureFeedbackController {
     private let onPermissionRequired: () -> Void
     private var display: SelectionDisplay?
 
-    init(settings: SettingsStore = SettingsStore(persistence: SettingsPersistence(defaults: .standard)),
-         popup: any CapturedTextPresenting = CapturedTextWindow(),
-         notifications: any NotificationPresenting = NotificationService(),
-         onPermissionRequired: @escaping () -> Void)
-    {
+    init(
+        settings: SettingsStore = SettingsStore(persistence: SettingsPersistence(defaults: .standard)),
+        popup: any CapturedTextPresenting = CapturedTextWindow(),
+        notifications: any NotificationPresenting = NotificationService(),
+        onPermissionRequired: @escaping () -> Void,
+    ) {
         self.settings = settings
         self.popup = popup
         self.notifications = notifications
@@ -24,35 +25,47 @@ final class CaptureFeedbackController {
         self.display = display
     }
 
-    /// Called only after the clipboard write has succeeded.
-    func copiedText(_ text: String) {
-        guard self.settings.showCapturedText, let display,
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    func onCopiedText(_ text: String) {
+        guard
+            self.settings.showCapturedText,
+            let display,
+            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             self.popup.hide()
             return
         }
+
         self.popup.show(text, on: display)
     }
 
-    func noTextFound() {
+    func onNoTextFound() {
         self.popup.hide()
         self.notifications.show("No text found", on: self.display)
     }
 
-    func failed(_ error: Error) {
+    func onFailed(_ error: Error) {
         self.hide()
+
         if error as? ScreenCaptureError == .permissionDenied {
             self.onPermissionRequired()
             return
         }
-        let message = switch error {
-        case is ClipboardError: "Could not copy text to the clipboard"
-        case is OCRError: "Could not read selected text"
-        case ScreenCaptureError.displayNotFound: "Display is no longer available"
-        default: "Could not capture selection"
-        }
+
+        let message = self.errorMessage(for: error)
         self.notifications.show(message, on: self.display)
+    }
+
+    private func errorMessage(for error: Error) -> String {
+        switch error {
+        case is ClipboardError:
+            "Could not copy text to the clipboard"
+        case is OCRError:
+            "Could not read selected text"
+        case ScreenCaptureError.displayNotFound:
+            "Display is no longer available"
+        default:
+            "Could not capture selection"
+        }
     }
 
     func hide() {

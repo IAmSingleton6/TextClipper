@@ -76,11 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case let .activityChanged(isActive):
             self.menuBarController?.setCaptureActive(isActive)
         case .noTextFound:
-            self.feedbackController.noTextFound()
+            self.feedbackController.onNoTextFound()
         case let .textRecognized(text):
-            self.feedbackController.copiedText(text)
+            self.feedbackController.onCopiedText(text)
         case let .failed(error):
-            self.feedbackController.failed(error)
+            self.feedbackController.onFailed(error)
         }
     }
 
