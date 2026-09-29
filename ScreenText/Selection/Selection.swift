@@ -10,13 +10,20 @@ struct Selection: Equatable, Sendable {
     static let minimumDimension: CGFloat = 4
 
     static func normalizedRect(from start: CGPoint, to end: CGPoint) -> CGRect {
-        CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
-               width: abs(end.x - start.x), height: abs(end.y - start.y))
+        CGRect(
+            x: min(start.x, end.x),
+            y: min(start.y, end.y),
+            width: abs(end.x - start.x),
+            height: abs(end.y - start.y),
+        )
     }
 
+    /// A completed selection must meet the minimum drag size. Display frame
+    /// validation in SelectionManager only checks for a finite, positive area.
     static func isValid(_ rect: CGRect) -> Bool {
         [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy(\.isFinite)
-            && rect.width >= self.minimumDimension && rect.height >= self.minimumDimension
+            && rect.width >= self.minimumDimension
+            && rect.height >= self.minimumDimension
     }
 }
 
