@@ -66,21 +66,21 @@ struct CaptureFeedbackTests {
         board.setString("Keep this", forType: .string)
         let count = board.changeCount
         let manager = TestSelectionManager()
+        var notified = false
+        weak var observedController: CaptureController?
         let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
                                            ocrService: FixedTextRecognizer(text: " \n"),
                                            captureService: TestScreenCaptureService(),
                                            toolbar: TestCaptureToolbar(), selectionManager: manager,
-                                           displayProvider: { self.display })
-        var notified = false
-        controller.onEvent = { event in
-            switch event {
-            case .noTextFound:
-                #expect(controller.state == .idle)
-                #expect(board.changeCount == count)
-                notified = true
-            default: break
-            }
-        }
+                                           displayProvider: { self.display },
+                                           onEvent: { event in
+                                               if case .noTextFound = event {
+                                                   #expect(observedController?.state == .idle)
+                                                   #expect(board.changeCount == count)
+                                                   notified = true
+                                               }
+                                           })
+        observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(

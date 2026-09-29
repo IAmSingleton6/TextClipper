@@ -190,18 +190,15 @@ struct MultiDisplayTests {
         let toolbar = TestCaptureToolbar()
         let clipboard = TestClipboardWriter()
         let display = SelectionDisplay(id: 1, frame: layouts[0], visibleFrame: layouts[0])
+        let selection = Selection(displayID: 1, rect: CGRect(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
         let controller = CaptureController(clipboardService: clipboard, ocrService: TestTextRecognizer(),
                                            captureService: service, toolbar: toolbar, selectionManager: manager,
-                                           displayProvider: { display })
+                                           displayProvider: { display }, onEvent: { event in
+                                               if case .textRecognized = event {
+                                                   Issue.record("Stale display result was delivered")
+                                               }
+                                           })
         let observer = DisplayConfigurationObserver(center: center) { controller.cancel() }
-        let selection = Selection(displayID: 1, rect: CGRect(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                Issue.record("Stale display result was delivered")
-            default: break
-            }
-        }
         controller.start()
         center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         #expect(controller.state == .idle && !toolbar.isVisible && !manager.isVisible)

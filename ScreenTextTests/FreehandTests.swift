@@ -147,6 +147,8 @@ struct FreehandTests {
         let display = SelectionDisplay(id: 42, frame: .init(x: -900, y: 900, width: 900, height: 300),
                                        visibleFrame: .init(x: -900, y: 900, width: 900, height: 300))
         let manager = SelectionManager()
+        var completed = false
+        weak var observedController: CaptureController?
         let controller = CaptureController(
             clipboardService: ClipboardService(pasteboard: board),
             ocrService: OCRService(),
@@ -155,20 +157,20 @@ struct FreehandTests {
             selectionManager: manager,
             displayProvider: { display },
             savedModeProvider: { .freehand },
+            onEvent: { event in
+                switch event {
+                case let .textRecognized(text):
+                    #expect(text == "INSIDE")
+                    #expect(board.string(forType: .string) == "INSIDE")
+                    #expect(observedController?.state == .idle)
+                    completed = true
+                case .failed:
+                    Issue.record("Freehand capture failed"); completed = true
+                default: break
+                }
+            },
         )
-        var completed = false
-        controller.onEvent = { event in
-            switch event {
-            case let .textRecognized(text):
-                #expect(text == "INSIDE")
-                #expect(board.string(forType: .string) == "INSIDE")
-                #expect(controller.state == .idle)
-                completed = true
-            case .failed:
-                Issue.record("Freehand capture failed"); completed = true
-            default: break
-            }
-        }
+        observedController = controller
         controller.start()
         let window = try #require(manager.window)
         let points = [CGPoint(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),

@@ -5,6 +5,9 @@ import Testing
 @MainActor
 struct CaptureControllerTests {
     @Test func `repeated invocation cancels and can start again`() {
+        var changes: [Bool] = []
+        var events: [String] = []
+        weak var observedController: CaptureController?
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -12,22 +15,21 @@ struct CaptureControllerTests {
             toolbar: TestCaptureToolbar(),
             selectionManager: TestSelectionManager(),
             displayProvider: { testDisplay },
+            onEvent: { event in
+                switch event {
+                case let .started(display):
+                    #expect(display.id == testDisplay.id)
+                    #expect(observedController?.state == .toolbar)
+                    events.append("started")
+                case let .activityChanged(isActive):
+                    changes.append(isActive)
+                    events.append(isActive ? "active" : "inactive")
+                default:
+                    Issue.record("Toggling capture must not deliver a result")
+                }
+            },
         )
-        var changes: [Bool] = []
-        var events: [String] = []
-        controller.onEvent = { event in
-            switch event {
-            case let .started(display):
-                #expect(display.id == testDisplay.id)
-                #expect(controller.state == .toolbar)
-                events.append("started")
-            case let .activityChanged(isActive):
-                changes.append(isActive)
-                events.append(isActive ? "active" : "inactive")
-            default:
-                Issue.record("Toggling capture must not deliver a result")
-            }
-        }
+        observedController = controller
 
         #expect(!controller.isActive)
         controller.toggle()
@@ -41,6 +43,7 @@ struct CaptureControllerTests {
     }
 
     @Test func `start and cancel are idempotent`() {
+        var changes: [Bool] = []
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -48,15 +51,12 @@ struct CaptureControllerTests {
             toolbar: TestCaptureToolbar(),
             selectionManager: TestSelectionManager(),
             displayProvider: { testDisplay },
+            onEvent: { event in
+                if case let .activityChanged(isActive) = event {
+                    changes.append(isActive)
+                }
+            },
         )
-        var changes: [Bool] = []
-        controller.onEvent = { event in
-            switch event {
-            case let .activityChanged(isActive):
-                changes.append(isActive)
-            default: break
-            }
-        }
 
         controller.cancel()
         controller.start()
@@ -106,6 +106,7 @@ struct CaptureControllerTests {
     @Test func `missing display leaves the controller idle`() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
+        var changes: [Bool] = []
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -113,15 +114,12 @@ struct CaptureControllerTests {
             toolbar: toolbar,
             selectionManager: TestSelectionManager(),
             displayProvider: { testDisplay },
+            onEvent: { event in
+                if case let .activityChanged(isActive) = event {
+                    changes.append(isActive)
+                }
+            },
         )
-        var changes: [Bool] = []
-        controller.onEvent = { event in
-            switch event {
-            case let .activityChanged(isActive):
-                changes.append(isActive)
-            default: break
-            }
-        }
         controller.start()
         #expect(!controller.isActive)
         #expect(changes.isEmpty)
@@ -130,6 +128,8 @@ struct CaptureControllerTests {
     @Test func `selection hides toolbar and delivers result after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
+        var completed: String?
+        weak var observedController: CaptureController?
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -137,23 +137,21 @@ struct CaptureControllerTests {
             toolbar: toolbar,
             selectionManager: selections,
             displayProvider: { testDisplay },
+            onEvent: { event in
+                if case let .textRecognized(text) = event {
+                    #expect(!toolbar.isVisible)
+                    #expect(!selections.isVisible)
+                    #expect(observedController?.state == .idle)
+                    completed = text
+                }
+            },
         )
+        observedController = controller
         let selection = Selection(
             displayID: testDisplay.id,
             rect: .init(x: 25, y: 40, width: 100, height: 60),
             shape: .rectangle,
         )
-        var completed: String?
-        controller.onEvent = { event in
-            switch event {
-            case let .textRecognized(text):
-                #expect(!toolbar.isVisible)
-                #expect(!selections.isVisible)
-                #expect(controller.state == .idle)
-                completed = text
-            default: break
-            }
-        }
         controller.start()
         #expect(controller.state == .toolbar)
         selections.onEvent?(.started)
@@ -173,6 +171,8 @@ struct CaptureControllerTests {
     @Test func `freehand drag locks mode and completes after teardown`() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
+        var completed: String?
+        weak var observedController: CaptureController?
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -180,23 +180,21 @@ struct CaptureControllerTests {
             toolbar: toolbar,
             selectionManager: selections,
             displayProvider: { testDisplay },
+            onEvent: { event in
+                if case let .textRecognized(text) = event {
+                    #expect(observedController?.state == .idle)
+                    #expect(!toolbar.isVisible)
+                    #expect(!selections.isVisible)
+                    completed = text
+                }
+            },
         )
+        observedController = controller
         let selection = Selection(
             displayID: testDisplay.id,
             rect: .init(x: 20, y: 30, width: 100, height: 60),
             shape: .freehand(points: [.init(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90)]),
         )
-        var completed: String?
-        controller.onEvent = { event in
-            switch event {
-            case let .textRecognized(text):
-                #expect(controller.state == .idle)
-                #expect(!toolbar.isVisible)
-                #expect(!selections.isVisible)
-                completed = text
-            default: break
-            }
-        }
         controller.start()
         controller.selectMode(.freehand)
         selections.onEvent?(.started)
@@ -214,6 +212,7 @@ struct CaptureControllerTests {
 
     @Test func `cancelling drag does not deliver selection`() {
         let selections = TestSelectionManager()
+        var completed = false
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -221,21 +220,112 @@ struct CaptureControllerTests {
             toolbar: TestCaptureToolbar(),
             selectionManager: selections,
             displayProvider: { testDisplay },
+            onEvent: { event in
+                if case .textRecognized = event {
+                    completed = true
+                }
+            },
         )
-        var completed = false
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                completed = true
-            default: break
-            }
-        }
         controller.start()
         selections.onEvent?(.started)
         selections.onEvent?(.cancelled)
         #expect(controller.state == .idle)
         #expect(!selections.isVisible)
         #expect(!completed)
+    }
+
+    @Test func `controller delegates completed selection to processor`() async throws {
+        let processor = TestCaptureProcessor()
+        let selections = TestSelectionManager()
+        var noTextFound = false
+        weak var observedController: CaptureController?
+        let controller = CaptureController(
+            toolbar: TestCaptureToolbar(),
+            selectionManager: selections,
+            displayProvider: { testDisplay },
+            processor: processor,
+            onEvent: { event in
+                if case .noTextFound = event {
+                    #expect(observedController?.state == .idle)
+                    noTextFound = true
+                }
+            },
+        )
+        observedController = controller
+        let selection = Selection(
+            displayID: testDisplay.id,
+            rect: .init(x: 20, y: 30, width: 100, height: 60),
+            shape: .rectangle,
+        )
+        controller.start()
+        selections.onEvent?(.started)
+        selections.onEvent?(.completed(selection))
+        for _ in 0 ..< 100 where !noTextFound {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        #expect(processor.selections == [selection])
+        #expect(noTextFound)
+    }
+
+    @Test func `escape monitor follows selection session`() {
+        let monitor = TestEscapeMonitor()
+        let selections = TestSelectionManager()
+        let controller = CaptureController(
+            toolbar: TestCaptureToolbar(),
+            selectionManager: selections,
+            displayProvider: { testDisplay },
+            escapeMonitor: monitor,
+            processor: TestCaptureProcessor(),
+        )
+
+        controller.start()
+        #expect(monitor.starts == 1)
+        monitor.trigger()
+        #expect(controller.state == .idle)
+        #expect(monitor.stops == 1)
+
+        controller.start()
+        #expect(monitor.starts == 2)
+        selections.onEvent?(.started)
+        selections.onEvent?(.completed(Selection(
+            displayID: testDisplay.id,
+            rect: .init(x: 20, y: 30, width: 100, height: 60),
+            shape: .rectangle,
+        )))
+        #expect(controller.state == .processing)
+        #expect(monitor.stops == 2)
+        controller.cancel()
+    }
+}
+
+@MainActor
+private final class TestEscapeMonitor: EscapeMonitoring {
+    private(set) var starts = 0
+    private(set) var stops = 0
+    private var onEscape: (() -> Void)?
+
+    func start(onEscape: @escaping () -> Void) {
+        self.starts += 1
+        self.onEscape = onEscape
+    }
+
+    func stop() {
+        self.stops += 1
+        self.onEscape = nil
+    }
+
+    func trigger() {
+        self.onEscape?()
+    }
+}
+
+@MainActor
+private final class TestCaptureProcessor: CaptureProcessing {
+    private(set) var selections: [Selection] = []
+
+    func process(_ selection: Selection) async throws -> CaptureProcessingResult {
+        self.selections.append(selection)
+        return .noTextFound
     }
 }
 

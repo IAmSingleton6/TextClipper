@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-import KeyboardShortcuts
 
 enum CaptureState: Equatable {
     case idle
@@ -20,43 +19,50 @@ enum CaptureEvent {
 @MainActor
 final class CaptureController {
     private(set) var state: CaptureState = .idle
-    var isActive: Bool {
-        self.state != .idle
-    }
-
-    var onEvent: ((CaptureEvent) -> Void)?
     private(set) var selectedMode: CaptureMode = .box
 
-    private let clipboardService: any ClipboardWriting
-    private let ocrService: any TextRecognizing
-    private let captureService: any ScreenCapturing
-    private var processingTask: Task<Void, Never>?
-    private var sessionID = UUID()
+    private let processor: any CaptureProcessing
+    private let escapeMonitor: any EscapeMonitoring
     private let toolbar: any CaptureToolbarPresenting
     private let selectionManager: any SelectionManaging
     private let savedModeProvider: (() -> CaptureMode)?
     private let saveMode: (CaptureMode) -> Void
-    private var lastSelectedMode: CaptureMode?
     private let displayProvider: () -> SelectionDisplay?
-    private var escapeTask: Task<Void, Never>?
+    private let onEvent: ((CaptureEvent) -> Void)?
 
-    init(clipboardService: any ClipboardWriting = ClipboardService(),
-         ocrService: any TextRecognizing = OCRService(),
-         captureService: any ScreenCapturing = ScreenCaptureService(),
-         toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
-         selectionManager: any SelectionManaging = SelectionManager(),
-         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
-         savedModeProvider: (() -> CaptureMode)? = nil,
-         saveMode: @escaping (CaptureMode) -> Void = { _ in })
-    {
-        self.clipboardService = clipboardService
-        self.ocrService = ocrService
-        self.captureService = captureService
+    private var lastSelectedMode: CaptureMode?
+    private var processingTask: Task<Void, Never>?
+    private var sessionID = UUID()
+
+    var isActive: Bool {
+        self.state != .idle
+    }
+
+    init(
+        clipboardService: any ClipboardWriting = ClipboardService(),
+        ocrService: any TextRecognizing = OCRService(),
+        captureService: any ScreenCapturing = ScreenCaptureService(),
+        toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
+        selectionManager: any SelectionManaging = SelectionManager(),
+        displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
+        escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
+        savedModeProvider: (() -> CaptureMode)? = nil,
+        saveMode: @escaping (CaptureMode) -> Void = { _ in },
+        processor: (any CaptureProcessing)? = nil,
+        onEvent: ((CaptureEvent) -> Void)? = nil,
+    ) {
+        self.processor = processor ?? CaptureProcessor(
+            captureService: captureService,
+            ocrService: ocrService,
+            clipboardService: clipboardService,
+        )
+        self.escapeMonitor = escapeMonitor
         self.toolbar = toolbar
         self.selectionManager = selectionManager
         self.displayProvider = displayProvider
         self.savedModeProvider = savedModeProvider
         self.saveMode = saveMode
+        self.onEvent = onEvent
     }
 
     func toggle() {
@@ -68,41 +74,74 @@ final class CaptureController {
     }
 
     func start() {
-        guard !self.isActive, let display = displayProvider() else { return }
-        self.selectedMode = self.savedModeProvider?() ?? self.lastSelectedMode ?? .box
+        guard !self.isActive, let display = self.displayProvider() else { return }
+
+        let mode = self.resolveStartCaptureMode()
+
         guard self.selectionManager.prepare(
             display: display,
-            mode: self.selectedMode,
+            mode: mode,
             onEvent: { [weak self] event in
-                switch event {
-                case .started: self?.selectionStarted()
-                case let .completed(selection): self?.selectionCompleted(selection)
-                case .cancelled: self?.cancel()
-                }
+                self?.handleSelectionEvent(event)
             },
-        ) else { return }
+        ) else {
+            return
+        }
+
         guard self.toolbar.show(
             display: display,
-            mode: self.selectedMode,
+            mode: mode,
             onAction: { [weak self] action in
-                switch action {
-                case let .selectMode(mode): self?.selectMode(mode)
-                case .cancel: self?.cancel()
-                }
+                self?.handleToolbarAction(action)
             },
         ) else {
             self.selectionManager.hide()
             return
         }
+
+        self.selectedMode = mode
+        self.enterToolbar(display: display)
+    }
+
+    private func resolveStartCaptureMode() -> CaptureMode {
+        self.savedModeProvider?() ?? self.lastSelectedMode ?? .box
+    }
+
+    private func enterToolbar(display: SelectionDisplay) {
         self.selectionManager.setCursorExclusionRect(self.toolbar.cursorExclusionRect)
         self.state = .toolbar
+
         self.onEvent?(.started(display))
         self.onEvent?(.activityChanged(true))
-        self.listenForEscape()
+
+        self.escapeMonitor.start { [weak self] in
+            self?.cancel()
+        }
+    }
+
+    private func handleSelectionEvent(_ event: SelectionEvent<Selection>) {
+        switch event {
+        case .started:
+            self.selectionStarted()
+        case let .completed(selection):
+            self.selectionCompleted(selection)
+        case .cancelled:
+            self.cancel()
+        }
+    }
+
+    private func handleToolbarAction(_ action: CaptureToolbarAction) {
+        switch action {
+        case let .selectMode(mode):
+            self.selectMode(mode)
+        case .cancel:
+            self.cancel()
+        }
     }
 
     func selectMode(_ mode: CaptureMode) {
         guard self.state == .toolbar else { return }
+
         self.selectedMode = mode
         self.lastSelectedMode = mode
         self.saveMode(mode)
@@ -112,6 +151,7 @@ final class CaptureController {
 
     func cancel() {
         guard self.isActive else { return }
+
         self.sessionID = UUID()
         self.processingTask?.cancel()
         self.processingTask = nil
@@ -121,14 +161,14 @@ final class CaptureController {
     }
 
     private func hideSelectionUI() {
-        self.escapeTask?.cancel()
-        self.escapeTask = nil
+        self.escapeMonitor.stop()
         self.toolbar.hide()
         self.selectionManager.hide()
     }
 
     private func selectionStarted() {
         guard self.state == .toolbar else { return }
+
         self.state = .selecting(self.selectedMode)
         self.toolbar.hide()
         self.selectionManager.setCursorExclusionRect(nil)
@@ -136,48 +176,37 @@ final class CaptureController {
 
     private func selectionCompleted(_ selection: Selection) {
         guard case .selecting = self.state else { return }
+
         self.hideSelectionUI()
         self.state = .processing
         let id = UUID()
         self.sessionID = id
-        let service = self.captureService
-        let recognizer = self.ocrService
+        let processor = self.processor
+
         self.processingTask = Task { [weak self] in
             do {
-                let image = try await service.capture(region: selection)
-                guard !Task.isCancelled, self?.sessionID == id else { return }
-                let text = try await recognizer.recognizeText(from: image)
+                let result = try await processor.process(selection)
+
                 guard !Task.isCancelled, let self, sessionID == id else { return }
-                guard try self.clipboardService.copy(text) else {
-                    self.cancel()
-                    self.onEvent?(.noTextFound)
-                    return
-                }
+
                 self.cancel()
-                self.onEvent?(.textRecognized(text))
+                switch result {
+                case let .textCopied(text):
+                    self.onEvent?(.textRecognized(text))
+                case .noTextFound:
+                    self.onEvent?(.noTextFound)
+                }
             } catch {
                 guard !Task.isCancelled, let self, sessionID == id else { return }
+
                 self.cancel()
                 self.onEvent?(.failed(error))
             }
         }
     }
 
-    private func listenForEscape() {
-        // Register only during a capture session; no Accessibility permission or
-        // persistent Escape shortcut setting is needed.
-        let events = KeyboardShortcuts.events(for: .init(.escape, modifiers: []))
-        let onCancel = { [weak self] in self?.cancel() }
-        self.escapeTask = Task {
-            for await event in events where event == .keyDown {
-                guard !Task.isCancelled else { return }
-                onCancel()
-            }
-        }
-    }
-
-    deinit {
-        escapeTask?.cancel()
+    isolated deinit {
+        escapeMonitor.stop()
         processingTask?.cancel()
     }
 }

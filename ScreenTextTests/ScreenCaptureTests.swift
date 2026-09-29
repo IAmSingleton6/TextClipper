@@ -167,6 +167,7 @@ struct CaptureProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        var deliveries = 0
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -174,17 +175,14 @@ struct CaptureProcessingTests {
             toolbar: toolbar,
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                switch event {
+                case .textRecognized, .failed:
+                    deliveries += 1
+                default: break
+                }
+            },
         )
-        var deliveries = 0
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                deliveries += 1
-            case .failed:
-                deliveries += 1
-            default: break
-            }
-        }
         controller.start()
         manager.onEvent?(.started)
         let selection = Selection(displayID: 1, rect: .init(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
@@ -212,6 +210,9 @@ struct CaptureProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        var failed = false
+        let changeCount = NSPasteboard.general.changeCount
+        weak var observedController: CaptureController?
         let controller = CaptureController(
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
@@ -219,18 +220,15 @@ struct CaptureProcessingTests {
             toolbar: TestCaptureToolbar(),
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                if case let .failed(error) = event {
+                    #expect(error as? ScreenCaptureError == .permissionDenied)
+                    #expect(observedController?.state == .idle)
+                    failed = true
+                }
+            },
         )
-        var failed = false
-        let changeCount = NSPasteboard.general.changeCount
-        controller.onEvent = { event in
-            switch event {
-            case let .failed(error):
-                #expect(error as? ScreenCaptureError == .permissionDenied)
-                #expect(controller.state == .idle)
-                failed = true
-            default: break
-            }
-        }
+        observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(
