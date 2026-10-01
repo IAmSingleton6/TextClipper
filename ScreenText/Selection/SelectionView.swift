@@ -8,7 +8,7 @@ final class SelectionView: NSView {
     var onEvent: ((SelectionEvent<SelectionGeometry>) -> Void)?
     private var drag: SelectionDrag?
 
-    var selectionRect: CGRect? {
+    var selectionRect: DisplayRect? {
         self.drag?.bounds(for: self.mode)
     }
 
@@ -56,16 +56,12 @@ final class SelectionView: NSView {
         needsDisplay = true
     }
 
-    private func clampedPoint(for event: NSEvent) -> CGPoint {
-        let point = convert(event.locationInWindow, from: nil)
-        return CGPoint(
-            x: min(max(point.x, bounds.minX), bounds.maxX),
-            y: min(max(point.y, bounds.minY), bounds.maxY),
-        )
+    private func clampedPoint(for event: NSEvent) -> DisplayPoint {
+        DisplayCoordinates.clampedPoint(from: event.locationInWindow, in: self)
     }
 
     override func draw(_: NSRect) {
-        SelectionOverlayDrawing().draw(in: bounds, mode: self.mode, drag: self.drag)
+        SelectionOverlayDrawing().draw(in: DisplayRect(displayLocalRect: bounds), mode: self.mode, drag: self.drag)
     }
 
     override var isOpaque: Bool {

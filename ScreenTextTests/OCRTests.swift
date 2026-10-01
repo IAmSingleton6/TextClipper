@@ -114,6 +114,8 @@ struct OCRProcessingTests {
         )
         var deliveries = 0
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: clipboard,
             ocrService: recognizer,
             captureService: TestScreenCaptureService(),
@@ -163,6 +165,8 @@ struct OCRProcessingTests {
         var failed = false
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: recognizer,
             captureService: TestScreenCaptureService(),

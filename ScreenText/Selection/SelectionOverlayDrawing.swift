@@ -2,17 +2,17 @@ import AppKit
 
 /// Draws the dimmed display and the selection's visible edge.
 struct SelectionOverlayDrawing {
-    func draw(in bounds: CGRect, mode: CaptureMode, drag: SelectionDrag?) {
+    func draw(in bounds: DisplayRect, mode: CaptureMode, drag: SelectionDrag?) {
         NSColor.clear.setFill()
-        bounds.fill(using: .copy)
+        bounds.displayLocalRect.fill(using: .copy)
 
         guard let drag, let selectionRect = drag.bounds(for: mode) else {
             NSColor.black.withAlphaComponent(0.28).setFill()
-            bounds.fill()
+            bounds.displayLocalRect.fill()
             return
         }
 
-        let dimmedArea = NSBezierPath(rect: bounds)
+        let dimmedArea = NSBezierPath(rect: bounds.displayLocalRect)
         dimmedArea.append(self.path(for: selectionRect, mode: mode, points: drag.points))
         dimmedArea.windingRule = .evenOdd
         NSColor.black.withAlphaComponent(0.28).setFill()
@@ -31,14 +31,14 @@ struct SelectionOverlayDrawing {
         border.stroke()
     }
 
-    private func path(for rect: CGRect, mode: CaptureMode, points: [CGPoint]) -> NSBezierPath {
-        guard mode == .freehand else { return NSBezierPath(rect: rect) }
+    private func path(for rect: DisplayRect, mode: CaptureMode, points: [DisplayPoint]) -> NSBezierPath {
+        guard mode == .freehand else { return NSBezierPath(rect: rect.displayLocalRect) }
 
         let path = NSBezierPath()
         if let first = points.first {
-            path.move(to: first)
+            path.move(to: first.displayLocalPoint)
             for point in points.dropFirst() {
-                path.line(to: point)
+                path.line(to: point.displayLocalPoint)
             }
             path.close()
         }

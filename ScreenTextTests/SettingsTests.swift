@@ -82,14 +82,21 @@ struct SettingsTests {
         let manager = SelectionManager()
         defer { manager.hide() }
         let toolbar = TestCaptureToolbar()
-        let display = SelectionDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 600, height: 400),
-                                       visibleFrame: CGRect(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(),
-                                           captureService: TestScreenCaptureService(), toolbar: toolbar,
-                                           selectionManager: manager,
-                                           displayProvider: { display },
-                                           savedModeProvider: { settings.lastSelectionMode },
-                                           saveMode: { settings.selectCaptureMode($0) })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: ScreenRect(appKitGlobalRect: CGRect(x: 0, y: 0, width: 600, height: 400)),
+            visibleFrame: ScreenRect(appKitGlobalRect: CGRect(x: 0, y: 0, width: 600, height: 400)),
+        )
+        let controller = CaptureController(
+            modeProvider: { settings.lastSelectionMode },
+            saveMode: { settings.selectCaptureMode($0) },
+            clipboardService: TestClipboardWriter(),
+            ocrService: TestTextRecognizer(),
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+        )
         controller.start()
         #expect(toolbar.mode == .freehand)
         #expect(manager.window?.selectionView.mode == .freehand)

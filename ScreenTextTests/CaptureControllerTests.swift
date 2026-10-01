@@ -9,6 +9,8 @@ struct CaptureControllerTests {
         var events: [String] = []
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -45,6 +47,8 @@ struct CaptureControllerTests {
     @Test func `start and cancel are idempotent`() {
         var changes: [Bool] = []
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -67,9 +71,33 @@ struct CaptureControllerTests {
         #expect(changes == [true, false])
     }
 
+    @Test func `mode provider controls initial and later sessions`() {
+        var mode: CaptureMode = .freehand
+        let controller = CaptureController(
+            modeProvider: { mode },
+            saveMode: { mode = $0 },
+            toolbar: TestCaptureToolbar(),
+            selectionManager: TestSelectionManager(),
+            displayProvider: { testDisplay },
+        )
+
+        #expect(controller.selectedMode == .freehand)
+        controller.start()
+        controller.selectMode(.box)
+        #expect(mode == .box)
+        controller.cancel()
+        mode = .freehand
+        controller.start()
+        #expect(controller.selectedMode == .freehand)
+        controller.cancel()
+    }
+
     @Test func `mode buttons update the toolbar and new sessions remember last mode`() {
         let toolbar = TestCaptureToolbar()
+        var mode: CaptureMode = .box
         let controller = CaptureController(
+            modeProvider: { mode },
+            saveMode: { mode = $0 },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -108,6 +136,8 @@ struct CaptureControllerTests {
         toolbar.canShow = false
         var changes: [Bool] = []
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -131,6 +161,8 @@ struct CaptureControllerTests {
         var completed: String?
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -174,6 +206,8 @@ struct CaptureControllerTests {
         var completed: String?
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -214,6 +248,8 @@ struct CaptureControllerTests {
         let selections = TestSelectionManager()
         var completed = false
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: TestScreenCaptureService(),
@@ -240,6 +276,8 @@ struct CaptureControllerTests {
         var noTextFound = false
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             toolbar: TestCaptureToolbar(),
             selectionManager: selections,
             displayProvider: { testDisplay },
@@ -271,6 +309,8 @@ struct CaptureControllerTests {
         let monitor = TestEscapeMonitor()
         let selections = TestSelectionManager()
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             toolbar: TestCaptureToolbar(),
             selectionManager: selections,
             displayProvider: { testDisplay },

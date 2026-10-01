@@ -24,7 +24,7 @@ struct ScreenCaptureService: ScreenCapturing {
         return try CaptureImageCropper().crop(
             capturedDisplay.image,
             to: region,
-            displaySize: capturedDisplay.displaySize,
+            displayPointSize: capturedDisplay.displayPointSize,
         )
     }
 
@@ -41,19 +41,19 @@ struct ScreenCaptureService: ScreenCapturing {
         }
 
         let filter = await CaptureWindowFilter.makeContentFilter(for: display, from: content)
-        let displaySize = filter.contentRect.size
+        let displayPointSize = filter.contentRect.size
         let configuration = try self.makeConfiguration(
-            displaySize: displaySize,
+            displayPointSize: displayPointSize,
             pixelScale: CGFloat(filter.pointPixelScale),
         )
         let image = try await captureImage(filter: filter, configuration: configuration)
 
-        return CapturedDisplay(image: image, displaySize: displaySize)
+        return CapturedDisplay(image: image, displayPointSize: displayPointSize)
     }
 
     private struct CapturedDisplay {
         let image: CGImage
-        let displaySize: CGSize
+        let displayPointSize: CGSize
     }
 
     private func loadShareableContent() async throws -> SCShareableContent {
@@ -64,9 +64,9 @@ struct ScreenCaptureService: ScreenCapturing {
         }
     }
 
-    private func makeConfiguration(displaySize: CGSize, pixelScale: CGFloat) throws -> SCStreamConfiguration {
+    private func makeConfiguration(displayPointSize: CGSize, pixelScale: CGFloat) throws -> SCStreamConfiguration {
         let imageSize = try ScreenshotSizing.requestedPixelSize(
-            forDisplayPointSize: displaySize,
+            forDisplayPointSize: displayPointSize,
             pointPixelScale: pixelScale,
         )
         let configuration = SCStreamConfiguration()

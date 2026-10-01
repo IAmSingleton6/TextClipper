@@ -19,18 +19,17 @@ enum CaptureEvent {
 @MainActor
 final class CaptureController {
     private(set) var state: CaptureState = .idle
-    private(set) var selectedMode: CaptureMode = .box
+    private(set) var selectedMode: CaptureMode
 
     private let processor: any CaptureProcessing
     private let escapeMonitor: any EscapeMonitoring
     private let toolbar: any CaptureToolbarPresenting
     private let selectionManager: any SelectionManaging
-    private let savedModeProvider: (() -> CaptureMode)?
+    private let modeProvider: () -> CaptureMode
     private let saveMode: (CaptureMode) -> Void
     private let displayProvider: () -> SelectionDisplay?
     private let onEvent: ((CaptureEvent) -> Void)?
 
-    private var lastSelectedMode: CaptureMode?
     private var processingTask: Task<Void, Never>?
     private var sessionID = UUID()
 
@@ -39,6 +38,8 @@ final class CaptureController {
     }
 
     init(
+        modeProvider: @escaping () -> CaptureMode,
+        saveMode: @escaping (CaptureMode) -> Void,
         clipboardService: any ClipboardWriting = ClipboardService(),
         ocrService: any TextRecognizing = OCRService(),
         captureService: any ScreenCapturing = ScreenCaptureService(),
@@ -46,11 +47,10 @@ final class CaptureController {
         selectionManager: any SelectionManaging = SelectionManager(),
         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
         escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
-        savedModeProvider: (() -> CaptureMode)? = nil,
-        saveMode: @escaping (CaptureMode) -> Void = { _ in },
         processor: (any CaptureProcessing)? = nil,
         onEvent: ((CaptureEvent) -> Void)? = nil,
     ) {
+        self.selectedMode = modeProvider()
         self.processor = processor ?? CaptureProcessor(
             captureService: captureService,
             ocrService: ocrService,
@@ -60,7 +60,7 @@ final class CaptureController {
         self.toolbar = toolbar
         self.selectionManager = selectionManager
         self.displayProvider = displayProvider
-        self.savedModeProvider = savedModeProvider
+        self.modeProvider = modeProvider
         self.saveMode = saveMode
         self.onEvent = onEvent
     }
@@ -76,7 +76,7 @@ final class CaptureController {
     func start() {
         guard !self.isActive, let display = self.displayProvider() else { return }
 
-        let mode = self.resolveStartCaptureMode()
+        let mode = self.modeProvider()
 
         guard self.selectionManager.prepare(
             display: display,
@@ -101,10 +101,6 @@ final class CaptureController {
 
         self.selectedMode = mode
         self.enterToolbar(display: display)
-    }
-
-    private func resolveStartCaptureMode() -> CaptureMode {
-        self.savedModeProvider?() ?? self.lastSelectedMode ?? .box
     }
 
     private func enterToolbar(display: SelectionDisplay) {
@@ -143,7 +139,6 @@ final class CaptureController {
         guard self.state == .toolbar else { return }
 
         self.selectedMode = mode
-        self.lastSelectedMode = mode
         self.saveMode(mode)
         self.toolbar.setMode(mode)
         self.selectionManager.setMode(mode)

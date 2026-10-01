@@ -10,7 +10,7 @@ struct FreehandTests {
         #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 50, y: 50), .init(x: 100, y: 100)]) == nil)
         #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 3, y: 0), .init(x: 3, y: 3)]) == nil)
         #expect(SelectionGeometry.freehand(points: [.zero, .init(x: CGFloat.nan, y: 50), .init(x: 100, y: 100)]) == nil)
-        let crossed = [CGPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
+        let crossed = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
         #expect(SelectionGeometry.freehand(points: crossed) != nil)
     }
 
@@ -60,7 +60,7 @@ struct FreehandTests {
         context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
         context.fill(CGRect(x: 0, y: height / 2, width: width, height: height - height / 2))
         let image = try #require(context.makeImage())
-        let polygon = [CGPoint(x: 10.25, y: 10.25), .init(x: 70.75, y: 10.25), .init(x: 70.75, y: 30.75),
+        let polygon = [DisplayPoint(x: 10.25, y: 10.25), .init(x: 70.75, y: 10.25), .init(x: 70.75, y: 30.75),
                        .init(x: 30.25, y: 30.75), .init(x: 30.25, y: 60.75), .init(x: 10.25, y: 60.75)]
         for points in [polygon, Array(polygon.reversed())] {
             let geometry = try #require(SelectionGeometry.freehand(points: points))
@@ -68,7 +68,7 @@ struct FreehandTests {
             let result = try CaptureImageCropper().crop(
                 image,
                 to: selection,
-                displaySize: .init(width: 100, height: 80),
+                displayPointSize: .init(width: 100, height: 80),
             )
             #expect(result.width == Int(ceil(70.75 * scale) - floor(10.25 * scale)))
             #expect(result.height == Int(ceil(69.75 * scale) - floor(19.25 * scale)))
@@ -103,14 +103,14 @@ struct FreehandTests {
         #expect(try #require(bitmap.colorAt(x: 20, y: 50)).alphaComponent == 0)
         let view = SelectionView(frame: .init(x: 0, y: 0, width: 100, height: 100))
         view.mode = .freehand
-        let points = [CGPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
+        let points = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
         func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
             try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
                                             windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         }
-        try view.mouseDown(with: event(.leftMouseDown, points[0]))
+        try view.mouseDown(with: event(.leftMouseDown, points[0].displayLocalPoint))
         for point in points.dropFirst() {
-            try view.mouseDragged(with: event(.leftMouseDragged, point))
+            try view.mouseDragged(with: event(.leftMouseDragged, point.displayLocalPoint))
         }
         let rendered = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rendered)
@@ -150,13 +150,14 @@ struct FreehandTests {
         var completed = false
         weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .freehand },
+            saveMode: { _ in },
             clipboardService: ClipboardService(pasteboard: board),
             ocrService: OCRService(),
             captureService: FreehandImageFixture(image: image),
             toolbar: TestCaptureToolbar(),
             selectionManager: manager,
             displayProvider: { display },
-            savedModeProvider: { .freehand },
             onEvent: { event in
                 switch event {
                 case let .textRecognized(text):
@@ -205,7 +206,7 @@ private struct FreehandImageFixture: ScreenCapturing {
         return try CaptureImageCropper().crop(
             self.image,
             to: region,
-            displaySize: .init(width: 900, height: 300),
+            displayPointSize: .init(width: 900, height: 300),
         )
     }
 }

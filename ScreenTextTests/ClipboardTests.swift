@@ -103,18 +103,25 @@ struct ClipboardProcessingTests {
         let toolbar = TestCaptureToolbar()
         var finished = false
         var copied = false
-        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
-                                           ocrService: OCRService(), captureService: ImageCaptureFixture(image: image),
-                                           toolbar: toolbar, selectionManager: manager, displayProvider: { display },
-                                           onEvent: { event in
-                                               switch event {
-                                               case .textRecognized:
-                                                   finished = true; copied = true
-                                               case .failed:
-                                                   Issue.record("Selection-to-paste pipeline failed"); finished = true
-                                               default: break
-                                               }
-                                           })
+        let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: ClipboardService(pasteboard: board),
+            ocrService: OCRService(),
+            captureService: ImageCaptureFixture(image: image),
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+            onEvent: { event in
+                switch event {
+                case .textRecognized:
+                    finished = true; copied = true
+                case .failed:
+                    Issue.record("Selection-to-paste pipeline failed"); finished = true
+                default: break
+                }
+            },
+        )
         controller.start()
         let window = try #require(manager.window)
         window.selectionView.mouseDown(
@@ -230,12 +237,20 @@ struct ClipboardProcessingTests {
                             manager: TestSelectionManager,
                             onEvent: @escaping (CaptureEvent) -> Void) -> CaptureController
     {
-        CaptureController(clipboardService: clipboard, ocrService: FixedTextRecognizer(text: text),
-                          captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(),
-                          selectionManager: manager, displayProvider: {
-                              SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
-                                               visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-                          }, onEvent: onEvent)
+        CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: clipboard,
+            ocrService: FixedTextRecognizer(text: text),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: {
+                SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
+                                 visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+            },
+            onEvent: onEvent,
+        )
     }
 
     private func startSelection(_ controller: CaptureController, manager: TestSelectionManager) {
@@ -253,7 +268,7 @@ struct ImageCaptureFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 99)
-        #expect(region.rect == CGRect(x: 100, y: 50, width: 200, height: 150))
+        #expect(region.rect == DisplayRect(x: 100, y: 50, width: 200, height: 150))
         #expect(region.shape == .rectangle)
         return self.image
     }

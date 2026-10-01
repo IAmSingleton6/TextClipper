@@ -2,17 +2,17 @@ import CoreGraphics
 
 /// A validated shape in display-local points, ready to send to capture.
 struct SelectionGeometry: Equatable, Sendable {
-    let rect: CGRect
+    let rect: DisplayRect
     let shape: SelectionShape
 
-    static func bounds(for points: [CGPoint]) -> CGRect? {
+    static func bounds(for points: [DisplayPoint]) -> DisplayRect? {
         guard !points.isEmpty, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return nil }
         let path = CGMutablePath()
-        path.addLines(between: points)
-        return path.boundingBoxOfPath
+        path.addLines(between: points.map(\.displayLocalPoint))
+        return DisplayRect(displayLocalRect: path.boundingBoxOfPath)
     }
 
-    static func freehand(points: [CGPoint]) -> SelectionGeometry? {
+    static func freehand(points: [DisplayPoint]) -> SelectionGeometry? {
         guard points.count >= 3,
               let bounds = self.bounds(for: points),
               Selection.isValid(bounds)
@@ -24,7 +24,7 @@ struct SelectionGeometry: Equatable, Sendable {
         return SelectionGeometry(rect: bounds, shape: .freehand(points: points))
     }
 
-    private static func largestTriangleArea(in points: [CGPoint]) -> CGFloat {
+    private static func largestTriangleArea(in points: [DisplayPoint]) -> CGFloat {
         guard let start = points.first,
               let furthest = points.max(by: {
                   hypot($0.x - start.x, $0.y - start.y) < hypot($1.x - start.x, $1.y - start.y)

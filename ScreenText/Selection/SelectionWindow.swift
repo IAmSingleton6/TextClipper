@@ -4,7 +4,7 @@ import AppKit
 final class SelectionWindow: NSWindow {
     let selectionView: SelectionView
     private var cursorTimer: Timer?
-    private var cursorExclusionRect: CGRect?
+    private var cursorExclusionRect: ScreenRect?
 
     var mode: CaptureMode {
         get { self.selectionView.mode }
@@ -16,9 +16,14 @@ final class SelectionWindow: NSWindow {
         set { self.selectionView.onEvent = newValue }
     }
 
-    init(displayFrame: CGRect) {
-        self.selectionView = SelectionView(frame: CGRect(origin: .zero, size: displayFrame.size))
-        super.init(contentRect: displayFrame, styleMask: [.borderless], backing: .buffered, defer: false)
+    init(displayFrame: ScreenRect) {
+        self.selectionView = SelectionView(frame: CGRect(origin: .zero, size: displayFrame.appKitGlobalRect.size))
+        super.init(
+            contentRect: displayFrame.appKitGlobalRect,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false,
+        )
 
         self.configureOverlay()
         contentView = self.selectionView
@@ -60,7 +65,7 @@ final class SelectionWindow: NSWindow {
         self.updateCursor()
     }
 
-    func setCursorExclusionRect(_ rect: CGRect?) {
+    func setCursorExclusionRect(_ rect: ScreenRect?) {
         self.cursorExclusionRect = rect
         self.updateCursor()
     }
@@ -93,7 +98,8 @@ final class SelectionWindow: NSWindow {
 
     private func updateCursor() {
         guard isVisible else { return }
-        let cursor: NSCursor = self.cursorExclusionRect?.contains(NSEvent.mouseLocation) == true ? .arrow : .crosshair
+        let cursor: NSCursor = self.cursorExclusionRect?
+            .contains(ScreenPoint(appKitGlobalPoint: NSEvent.mouseLocation)) == true ? .arrow : .crosshair
         cursor.set()
     }
 

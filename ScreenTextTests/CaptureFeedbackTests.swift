@@ -4,8 +4,11 @@ import Testing
 
 @MainActor
 struct CaptureFeedbackTests {
-    private let display = SelectionDisplay(id: 7, frame: CGRect(x: -1440, y: 900, width: 1440, height: 900),
-                                           visibleFrame: CGRect(x: -1440, y: 900, width: 1440, height: 875))
+    private let display = SelectionDisplay(
+        id: 7,
+        frame: ScreenRect(appKitGlobalRect: CGRect(x: -1440, y: 900, width: 1440, height: 900)),
+        visibleFrame: ScreenRect(appKitGlobalRect: CGRect(x: -1440, y: 900, width: 1440, height: 875)),
+    )
 
     @Test func `preference defaults on and persists without captured text`() throws {
         let name = "com.screentext.tests.\(UUID())"
@@ -68,24 +71,29 @@ struct CaptureFeedbackTests {
         let manager = TestSelectionManager()
         var notified = false
         weak var observedController: CaptureController?
-        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
-                                           ocrService: FixedTextRecognizer(text: " \n"),
-                                           captureService: TestScreenCaptureService(),
-                                           toolbar: TestCaptureToolbar(), selectionManager: manager,
-                                           displayProvider: { self.display },
-                                           onEvent: { event in
-                                               if case .noTextFound = event {
-                                                   #expect(observedController?.state == .idle)
-                                                   #expect(board.changeCount == count)
-                                                   notified = true
-                                               }
-                                           })
+        let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: ClipboardService(pasteboard: board),
+            ocrService: FixedTextRecognizer(text: " \n"),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: { self.display },
+            onEvent: { event in
+                if case .noTextFound = event {
+                    #expect(observedController?.state == .idle)
+                    #expect(board.changeCount == count)
+                    notified = true
+                }
+            },
+        )
         observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(
             displayID: self.display.id,
-            rect: CGRect(x: 10, y: 20, width: 100, height: 60),
+            rect: DisplayRect(displayLocalRect: CGRect(x: 10, y: 20, width: 100, height: 60)),
             shape: .rectangle,
         )))
         for _ in 0 ..< 100 where !notified {

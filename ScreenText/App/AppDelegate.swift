@@ -18,12 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     private lazy var captureController = CaptureController(
-        savedModeProvider: { [weak self] in
-            self?.settings.lastSelectionMode ?? .box
-        },
-        saveMode: { [weak self] mode in
-            self?.settings.selectCaptureMode(mode)
-        },
+        modeProvider: { [settings = self.settings] in settings.lastSelectionMode },
+        saveMode: { [settings = self.settings] mode in settings.selectCaptureMode(mode) },
         onEvent: { [weak self] event in
             self?.handleCaptureEvent(event)
         },
@@ -44,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.menuBarController = MenuBarController { [weak self] action in
             guard let self else { return }
             switch action {
-            case .capture:
+            case .startCapture:
                 self.captureController.toggle()
             case .settings:
                 self.captureController.cancel()
@@ -74,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case let .started(display):
             self.feedbackController.beginCapture(on: display)
         case let .activityChanged(isActive):
-            self.menuBarController?.setCaptureActive(isActive)
+            self.menuBarController?.updateCaptureMenuItem(isActive)
         case .noTextFound:
             self.feedbackController.onNoTextFound()
         case let .textRecognized(text):

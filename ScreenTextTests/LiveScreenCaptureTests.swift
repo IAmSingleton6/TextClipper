@@ -16,7 +16,11 @@ struct LiveScreenCaptureTests {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         try #require(content.windows.contains { $0.title == "ScreenText Capture Test Fixture" })
         let rect = CGRect(x: screen.frame.width / 2 - 160, y: screen.frame.height / 2 - 120, width: 320, height: 240)
-        let selection = Selection(displayID: number.uint32Value, rect: rect, shape: .rectangle)
+        let selection = Selection(
+            displayID: number.uint32Value,
+            rect: DisplayRect(displayLocalRect: rect),
+            shape: .rectangle,
+        )
         let service = ScreenCaptureService()
         let clipboardChanges = NSPasteboard.general.changeCount
         let image = try await service.capture(region: selection)
@@ -31,7 +35,7 @@ struct LiveScreenCaptureTests {
 
         let freehand = try await service.capture(region: Selection(
             displayID: number.uint32Value,
-            rect: rect,
+            rect: DisplayRect(displayLocalRect: rect),
             shape: .freehand(points: [
                 .init(x: rect.midX, y: rect.minY), .init(x: rect.maxX, y: rect.midY),
                 .init(x: rect.midX, y: rect.maxY), .init(x: rect.minX, y: rect.midY),

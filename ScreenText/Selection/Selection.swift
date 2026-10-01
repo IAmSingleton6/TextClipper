@@ -2,13 +2,13 @@ import AppKit
 
 struct Selection: Equatable, Sendable {
     let displayID: CGDirectDisplayID
-    let rect: CGRect
+    let rect: DisplayRect
     let shape: SelectionShape
 
     static let minimumDimension: CGFloat = 4
 
-    static func normalizedRect(from start: CGPoint, to end: CGPoint) -> CGRect {
-        CGRect(
+    static func normalizedRect(from start: DisplayPoint, to end: DisplayPoint) -> DisplayRect {
+        DisplayRect(
             x: min(start.x, end.x),
             y: min(start.y, end.y),
             width: abs(end.x - start.x),
@@ -17,7 +17,7 @@ struct Selection: Equatable, Sendable {
     }
 
     /// A completed drag must be large enough to contain useful content.
-    static func isValid(_ rect: CGRect) -> Bool {
+    static func isValid(_ rect: DisplayRect) -> Bool {
         [rect.minX, rect.minY, rect.maxX, rect.maxY].allSatisfy(\.isFinite)
             && rect.width >= self.minimumDimension
             && rect.height >= self.minimumDimension
@@ -26,7 +26,7 @@ struct Selection: Equatable, Sendable {
 
 enum SelectionShape: Equatable, Sendable {
     case rectangle
-    case freehand(points: [CGPoint])
+    case freehand(points: [DisplayPoint])
 }
 
 enum SelectionEvent<Value> {

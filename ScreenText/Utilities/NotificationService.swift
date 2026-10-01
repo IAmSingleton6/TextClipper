@@ -16,7 +16,7 @@ final class NotificationService: NotificationPresenting {
 
         guard let visibleFrame = display?.visibleFrame
             ?? SelectionDisplay.atMouse()?.visibleFrame
-            ?? NSScreen.main?.visibleFrame
+            ?? NSScreen.main.map({ ScreenRect(appKitGlobalRect: $0.visibleFrame) })
         else {
             return
         }

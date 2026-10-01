@@ -8,12 +8,12 @@ protocol SelectionManaging: AnyObject {
         onEvent: @escaping (SelectionEvent<Selection>) -> Void,
     ) -> Bool
     func setMode(_ mode: CaptureMode)
-    func setCursorExclusionRect(_ rect: CGRect?)
+    func setCursorExclusionRect(_ rect: ScreenRect?)
     func hide()
 }
 
 extension SelectionManaging {
-    func setCursorExclusionRect(_: CGRect?) {}
+    func setCursorExclusionRect(_: ScreenRect?) {}
 }
 
 @MainActor
@@ -82,7 +82,7 @@ final class SelectionManager: SelectionManaging {
         self.window?.mode = mode
     }
 
-    func setCursorExclusionRect(_ rect: CGRect?) {
+    func setCursorExclusionRect(_ rect: ScreenRect?) {
         self.window?.setCursorExclusionRect(rect)
     }
 

@@ -6,7 +6,7 @@ struct ImageMasker {
     }
 
     /// Clears pixels outside the freehand boundary before the image reaches OCR.
-    func applyFreehandMask(to image: CGImage, points: [CGPoint]) throws -> CGImage {
+    func applyFreehandMask(to image: CGImage, points: [CroppedImagePixelPoint]) throws -> CGImage {
         guard
             points.count >= 3,
             points.allSatisfy({ $0.x.isFinite && $0.y.isFinite })
@@ -31,7 +31,7 @@ struct ImageMasker {
         context.clear(bounds)
 
         let path = CGMutablePath()
-        path.addLines(between: points)
+        path.addLines(between: points.map(\.maskContextPoint))
         path.closeSubpath()
         context.addPath(path)
 

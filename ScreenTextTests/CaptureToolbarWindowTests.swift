@@ -14,10 +14,13 @@ struct CaptureToolbarWindowTests {
             NSRect(x: 0, y: 900, width: 1440, height: 875),
         ]
         for visibleFrame in frames {
-            let toolbarFrame = CaptureToolbarWindow.positionedFrame(size: size, visibleFrame: visibleFrame)
+            let toolbarFrame = CaptureToolbarWindow.positionedFrame(
+                size: size,
+                visibleFrame: ScreenRect(appKitGlobalRect: visibleFrame),
+            )
             #expect(toolbarFrame.midX == visibleFrame.midX)
             #expect(toolbarFrame.minY == visibleFrame.minY + 24)
-            #expect(visibleFrame.contains(toolbarFrame))
+            #expect(visibleFrame.contains(toolbarFrame.appKitGlobalRect))
         }
     }
 
