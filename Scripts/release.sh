@@ -59,7 +59,9 @@ xcodebuild -project ScreenText.xcodeproj -scheme ScreenText -configuration Relea
 
 app="$work/build/Build/Products/Release/ScreenText.app"
 codesign --verify --deep --strict --verbose=2 "$app"
-lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/ScreenText"
+for architecture in arm64 x86_64; do
+  lipo "$app/Contents/MacOS/ScreenText" -verify_arch "$architecture"
+done
 # Staple the app itself before packaging so the installed copy works offline.
 ditto -c -k --keepParent "$app" "$work/ScreenText.zip"
 xcrun notarytool submit "$work/ScreenText.zip" --keychain-profile ScreenTextRelease \

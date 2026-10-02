@@ -53,6 +53,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Install build-phase lint tool
+        run: brew install swiftlint
       - name: Build signed app and notarized DMG
         env:
           RELEASE_TAG: ${{ github.ref_name }}
