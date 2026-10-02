@@ -2,11 +2,13 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let settings = SettingsStore()
+    private lazy var settingsWindow = SettingsWindowController(settings: settings)
     private let permissionManager = PermissionManager()
-    private lazy var feedbackController = CaptureFeedbackController(permissionRequired: { [weak self] in
+    private lazy var feedbackController = CaptureFeedbackController(settings: settings, permissionRequired: { [weak self] in
         self?.permissionManager.showPermissionRequired()
     })
-    private let captureController = CaptureController()
+    private lazy var captureController = CaptureController(defaultModeProvider: { [weak self] in self?.settings.defaultMode ?? .box })
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
 
@@ -27,7 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let onCapture: () -> Void = { [weak self] in
             self?.captureController.toggle()
         }
-        let menuBarController = MenuBarController(onCapture: onCapture)
+        let menuBarController = MenuBarController(onCapture: onCapture, onSettings: { [weak self] in
+            self?.captureController.cancel()
+            self?.feedbackController.hide()
+            self?.settingsWindow.show()
+        })
         self.menuBarController = menuBarController
         captureController.onActivityChanged = { [weak menuBarController] isActive in
             menuBarController?.setCaptureActive(isActive)

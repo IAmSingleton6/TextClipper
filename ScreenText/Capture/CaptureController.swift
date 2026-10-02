@@ -27,6 +27,7 @@ final class CaptureController {
     private var sessionID = UUID()
     private let toolbar: any CaptureToolbarPresenting
     private let selectionManager: any SelectionManaging
+    private let defaultModeProvider: () -> CaptureMode
     private let displayProvider: () -> SelectionDisplay?
     private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
@@ -36,13 +37,15 @@ final class CaptureController {
          captureService: any ScreenCapturing = ScreenCaptureService(),
          toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
          selectionManager: any SelectionManaging = SelectionManager(),
-         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse) {
+         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
+         defaultModeProvider: @escaping () -> CaptureMode = { .box }) {
         self.clipboardService = clipboardService
         self.ocrService = ocrService
         self.captureService = captureService
         self.toolbar = toolbar
         self.selectionManager = selectionManager
         self.displayProvider = displayProvider
+        self.defaultModeProvider = defaultModeProvider
     }
 
     func toggle() {
@@ -55,9 +58,9 @@ final class CaptureController {
 
     func start() {
         guard !isActive, let display = displayProvider() else { return }
-        toolbarModel.mode = .box
+        toolbarModel.mode = defaultModeProvider()
         guard selectionManager.prepare(
-            display: display, mode: .box,
+            display: display, mode: toolbarModel.mode,
             onStarted: { [weak self] in self?.selectionStarted() },
             onCompleted: { [weak self] selection in self?.selectionCompleted(selection) },
             onCancelled: { [weak self] in self?.cancel() }
