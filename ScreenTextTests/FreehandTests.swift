@@ -2,74 +2,83 @@ import AppKit
 @testable import ScreenText
 import Testing
 
-@MainActor
-struct FreehandTests {
-    @Test func `rejects clicks lines tiny paths and invalid points`() {
-        #expect(SelectionGeometry.freehand(points: []) == nil)
-        #expect(SelectionGeometry.freehand(points: [.zero]) == nil)
-        #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 50, y: 50), .init(x: 100, y: 100)]) == nil)
-        #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 3, y: 0), .init(x: 3, y: 3)]) == nil)
-        #expect(SelectionGeometry.freehand(points: [.zero, .init(x: CGFloat.nan, y: 50), .init(x: 100, y: 100)]) == nil)
-        let crossed = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
-        #expect(SelectionGeometry.freehand(points: crossed) != nil)
-    }
-
-    @Test func `horizontal first stroke is visible and line only release cancels`() throws {
-        let view = SelectionView(frame: .init(x: 0, y: 0, width: 100, height: 100))
-        view.mode = .freehand
-        func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
-            try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+extension DesktopTests {
+    @MainActor
+    struct FreehandTests {
+        @Test(arguments: [
+            [DisplayPoint](), [.zero],
+            [.zero, .init(x: 50, y: 50), .init(x: 100, y: 100)],
+            [.zero, .init(x: 3, y: 0), .init(x: 3, y: 3)],
+            [.zero, .init(x: .nan, y: 50), .init(x: 100, y: 100)],
+        ])
+        func `clicks lines tiny paths and nonfinite points do not form a selection`(points: [DisplayPoint]) {
+            #expect(SelectionGeometry.freehand(points: points) == nil)
         }
-        try view.mouseDown(with: event(.leftMouseDown, .init(x: 10, y: 10)))
-        try view.mouseDragged(with: event(.leftMouseDragged, .init(x: 90, y: 10)))
-        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh * 90 / 100))
-        #expect(color.alphaComponent > 0.8)
-        var finished = false
-        view.onEvent = { event in
-            switch event {
-            case .cancelled: finished = true
-            default: Issue.record("A line must cancel selection")
-            }
+
+        @Test func `a freehand triangle at the minimum area and size is accepted`() {
+            #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 4, y: 0), .init(x: 4, y: 4)]) != nil)
         }
-        try view.mouseUp(with: event(.leftMouseUp, .init(x: 90, y: 10)))
-        #expect(finished && view.selectionRect == nil)
-    }
 
-    @Test func `unsupported saved mode falls back to box and can be replaced`() throws {
-        let name = "com.screentext.tests.\(UUID())"
-        let defaults = try #require(UserDefaults(suiteName: name))
-        defer { defaults.removePersistentDomain(forName: name) }
-        defaults.set("circle", forKey: "lastSelectionMode")
-        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
-        #expect(settings.lastSelectionMode == .box)
-        settings.selectCaptureMode(.freehand)
-        #expect(defaults.string(forKey: "lastSelectionMode") == "freehand")
-    }
+        @Test func `a freehand triangle below minimum area is rejected even with valid bounds`() {
+            #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 4, y: 0.01), .init(x: 4, y: 4)]) == nil)
+        }
 
-    @Test(arguments: [CGFloat(1), 1.25, 2])
-    func `exact capture mask keeps concavity orientation and fractional edges`(scale: CGFloat) throws {
-        let width = Int(100 * scale), height = Int(80 * scale)
-        let context = try #require(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
-                                             bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height / 2))
-        context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
-        context.fill(CGRect(x: 0, y: height / 2, width: width, height: height - height / 2))
-        let image = try #require(context.makeImage())
-        let polygon = [DisplayPoint(x: 10.25, y: 10.25), .init(x: 70.75, y: 10.25), .init(x: 70.75, y: 30.75),
-                       .init(x: 30.25, y: 30.75), .init(x: 30.25, y: 60.75), .init(x: 10.25, y: 60.75)]
-        for points in [polygon, Array(polygon.reversed())] {
-            let geometry = try #require(SelectionGeometry.freehand(points: points))
+        @Test func `self crossing paths can form a valid freehand selection`() {
+            let points = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
+            #expect(SelectionGeometry.freehand(points: points) != nil)
+        }
+
+        @Test func `a horizontal first stroke is visible before it encloses an area`() throws {
+            let drawing = SelectionViewFixture()
+
+            // GIVEN
+            try drawing.press(at: .init(x: 10, y: 10))
+
+            // WHEN
+            try drawing.drag(to: .init(x: 90, y: 10))
+
+            // THEN
+            let bitmap = try drawing.renderedOverlay()
+            let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh * 90 / 100))
+            #expect(color.alphaComponent > 0.8)
+        }
+
+        @Test func `releasing a line without enclosed area cancels and clears selection`() throws {
+            let drawing = SelectionViewFixture()
+
+            // GIVEN
+            try drawing.press(at: .init(x: 10, y: 10))
+            try drawing.drag(to: .init(x: 90, y: 10))
+
+            // WHEN
+            try drawing.release(at: .init(x: 90, y: 10))
+
+            // THEN
+            #expect(drawing.cancellations == 1)
+            #expect(drawing.completed.isEmpty)
+            #expect(drawing.view.selectionRect == nil)
+        }
+
+        @Test(arguments: [CGFloat(1), 1.25, 2], [false, true])
+        func `capture masks preserve concavity orientation and fractional edges`(scale: CGFloat,
+                                                                                 reversed: Bool) throws
+        {
+            // GIVEN
+            let image = try TestImages.colored(width: Int(100 * scale), height: Int(80 * scale))
+            let polygon = [DisplayPoint(x: 10.25, y: 10.25), .init(x: 70.75, y: 10.25), .init(x: 70.75, y: 30.75),
+                           .init(x: 30.25, y: 30.75), .init(x: 30.25, y: 60.75), .init(x: 10.25, y: 60.75)]
+            let geometry = try #require(SelectionGeometry
+                .freehand(points: reversed ? Array(polygon.reversed()) : polygon))
             let selection = Selection(displayID: 42, rect: geometry.rect, shape: geometry.shape)
+
+            // WHEN
             let result = try CaptureImageCropper().crop(
                 image,
                 to: selection,
                 displayPointSize: .init(width: 100, height: 80),
             )
+
+            // THEN
             #expect(result.width == Int(ceil(70.75 * scale) - floor(10.25 * scale)))
             #expect(result.height == Int(ceil(69.75 * scale) - floor(19.25 * scale)))
             let bitmap = NSBitmapImageRep(cgImage: result)
@@ -81,121 +90,91 @@ struct FreehandTests {
             let bottom = try color(50, 20)
             let top = try color(20, 50)
             let notch = try color(50, 50)
-            #expect(bottom.redComponent > 0.9 && bottom.alphaComponent == 1)
-            #expect(top.blueComponent > 0.9 && top.alphaComponent == 1)
+            #expect(bottom.redComponent > 0.9)
+            #expect(bottom.alphaComponent == 1)
+            #expect(top.blueComponent > 0.9)
+            #expect(top.alphaComponent == 1)
             #expect(notch.alphaComponent == 0)
         }
-    }
 
-    @Test func `self crossing mask uses same even odd rule as overlay`() throws {
-        let context = try #require(CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8,
-                                             bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(),
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        context.setFillColor(CGColor(gray: 1, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
-        let input = try #require(context.makeImage())
-        let output = try ImageMasker().applyFreehandMask(to: input, points: [
-            .init(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10),
-        ])
-        let bitmap = NSBitmapImageRep(cgImage: output)
-        #expect(try #require(bitmap.colorAt(x: 50, y: 20)).alphaComponent == 1)
-        #expect(try #require(bitmap.colorAt(x: 50, y: 80)).alphaComponent == 1)
-        #expect(try #require(bitmap.colorAt(x: 20, y: 50)).alphaComponent == 0)
-        let view = SelectionView(frame: .init(x: 0, y: 0, width: 100, height: 100))
-        view.mode = .freehand
-        let points = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
-        func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
-            try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
-        }
-        try view.mouseDown(with: event(.leftMouseDown, points[0].displayLocalPoint))
-        for point in points.dropFirst() {
-            try view.mouseDragged(with: event(.leftMouseDragged, point.displayLocalPoint))
-        }
-        let rendered = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: rendered)
-        func overlayAlpha(_ x: Int, _ y: Int) throws -> CGFloat {
-            try #require(rendered.colorAt(x: x * rendered.pixelsWide / 100, y: y * rendered.pixelsHigh / 100))
-                .alphaComponent
-        }
-        #expect(try overlayAlpha(50, 20) == 0)
-        #expect(try overlayAlpha(50, 80) == 0)
-        #expect(try abs(overlayAlpha(20, 50) - 0.28) < 0.02)
-    }
+        @Test func `self crossing masks and overlays use the same even odd boundary`() throws {
+            // GIVEN
+            let input = try TestImages.colored(width: 100, height: 100)
+            let points = [DisplayPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
+            let drawing = SelectionViewFixture()
 
-    @Test func `native draw through production mask vision and paste copies only enclosed text`() async throws {
-        let context = try #require(CGContext(data: nil, width: 900, height: 300, bitsPerComponent: 8,
-                                             bytesPerRow: 3600, space: CGColorSpaceCreateDeviceRGB(),
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        NSColor.white.setFill()
-        CGRect(x: 0, y: 0, width: 900, height: 300).fill()
-        for (text, point) in [("OUTSIDE", CGPoint(x: 10, y: 270)), ("INSIDE", CGPoint(x: 350, y: 130))] {
-            (text as NSString).draw(
-                at: point,
-                withAttributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular),
-                    .foregroundColor: NSColor.black,
-                ],
+            // WHEN
+            let output = try ImageMasker().applyFreehandMask(to: input, points: points.map {
+                CroppedImagePixelPoint(x: $0.x, y: $0.y)
+            })
+            try drawing.press(at: points[0].displayLocalPoint)
+            for point in points.dropFirst() {
+                try drawing.drag(to: point.displayLocalPoint)
+            }
+            let rendered = try drawing.renderedOverlay()
+
+            // THEN
+            let bitmap = NSBitmapImageRep(cgImage: output)
+            #expect(try #require(bitmap.colorAt(x: 50, y: 20)).alphaComponent == 1)
+            #expect(try #require(bitmap.colorAt(x: 50, y: 80)).alphaComponent == 1)
+            #expect(try #require(bitmap.colorAt(x: 20, y: 50)).alphaComponent == 0)
+            func overlayAlpha(_ x: Int, _ y: Int) throws -> CGFloat {
+                try #require(rendered.colorAt(x: x * rendered.pixelsWide / 100, y: y * rendered.pixelsHigh / 100))
+                    .alphaComponent
+            }
+            #expect(try overlayAlpha(50, 20) == 0)
+            #expect(try overlayAlpha(50, 80) == 0)
+            #expect(try abs(overlayAlpha(20, 50) - 0.28) < 0.02)
+        }
+
+        @Test func `native freehand selection copies only enclosed text through real masking and Vision`() async throws {
+            let image = try TestImages.text(["OUTSIDE", "INSIDE"],
+                                            positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
+            let clipboard = PasteboardFixture()
+            let selection = SelectionFixture(
+                display: SelectionDisplay(id: 42, frame: .init(x: -900, y: 900, width: 900, height: 300),
+                                          visibleFrame: .init(x: -900, y: 900, width: 900, height: 300)),
+                initialMode: .freehand,
             )
+            let capture = CaptureFixture(
+                initialMode: .freehand, display: selection.display, selectionManager: selection.manager,
+                captureService: FreehandImageFixture(image: image), ocrService: OCRService(),
+                clipboardService: clipboard.service,
+                onEvent: { capture, event in
+                    if case let .textRecognized(text) = event {
+                        #expect(text == "INSIDE")
+                        #expect(clipboard.board.string(forType: .string) == "INSIDE")
+                        #expect(capture.isIdle)
+                    }
+                },
+            )
+            let points = [CGPoint(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
+                          .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200)]
+
+            // GIVEN
+            capture.start()
+            let window = try selection.window
+            try selection.press(at: points[0])
+            for point in points.dropFirst() {
+                try selection.drag(to: point)
+            }
+
+            // WHEN
+            try selection.release(at: #require(points.last))
+            #expect(selection.manager.window == nil)
+            #expect(!window.isVisible)
+            #expect(capture.state == .processing)
+            try await capture.waitForResult()
+
+            // THEN
+            guard case .textRecognized = try #require(capture.results.first) else {
+                Issue.record("Native freehand processing should deliver recognized text")
+                return
+            }
+            #expect(capture.isIdle)
+            #expect(capture.results.count == 1)
+            #expect(try clipboard.pastedText() == "INSIDE")
         }
-        NSGraphicsContext.restoreGraphicsState()
-        let image = try #require(context.makeImage())
-        let board = NSPasteboard(name: .init("com.screentext.tests.\(UUID())"))
-        defer { board.releaseGlobally() }
-        let display = SelectionDisplay(id: 42, frame: .init(x: -900, y: 900, width: 900, height: 300),
-                                       visibleFrame: .init(x: -900, y: 900, width: 900, height: 300))
-        let manager = SelectionManager()
-        var completed = false
-        weak var observedController: CaptureController?
-        let controller = CaptureController(
-            modeProvider: { .freehand },
-            saveMode: { _ in },
-            clipboardService: ClipboardService(pasteboard: board),
-            ocrService: OCRService(),
-            captureService: FreehandImageFixture(image: image),
-            toolbar: TestCaptureToolbar(),
-            selectionManager: manager,
-            displayProvider: { display },
-            onEvent: { event in
-                switch event {
-                case let .textRecognized(text):
-                    #expect(text == "INSIDE")
-                    #expect(board.string(forType: .string) == "INSIDE")
-                    #expect(observedController?.state == .idle)
-                    completed = true
-                case .failed:
-                    Issue.record("Freehand capture failed"); completed = true
-                default: break
-                }
-            },
-        )
-        observedController = controller
-        controller.start()
-        let window = try #require(manager.window)
-        let points = [CGPoint(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
-                      .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200)]
-        func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
-            try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                            windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-                                            clickCount: 1, pressure: 1))
-        }
-        try window.selectionView.mouseDown(with: event(.leftMouseDown, points[0]))
-        for point in points.dropFirst() {
-            try window.selectionView.mouseDragged(with: event(.leftMouseDragged, point))
-        }
-        try window.selectionView.mouseUp(with: event(.leftMouseUp, #require(points.last)))
-        #expect(manager.window == nil && !window.isVisible)
-        #expect(controller.state == .processing)
-        for _ in 0 ..< 1500 where !completed {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(completed)
-        let editor = NSTextView()
-        editor.isRichText = false
-        #expect(editor.readSelection(from: board))
-        #expect(editor.string == "INSIDE")
     }
 }
 
@@ -203,10 +182,6 @@ private struct FreehandImageFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 42)
-        return try CaptureImageCropper().crop(
-            self.image,
-            to: region,
-            displayPointSize: .init(width: 900, height: 300),
-        )
+        return try CaptureImageCropper().crop(self.image, to: region, displayPointSize: .init(width: 900, height: 300))
     }
 }

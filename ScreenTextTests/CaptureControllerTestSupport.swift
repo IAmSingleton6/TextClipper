@@ -10,14 +10,21 @@ final class CaptureFixture {
     var savedMode: CaptureMode
     private(set) var events: [CaptureEvent] = []
     private let display: SelectionDisplay?
-    private let processor: any CaptureProcessing
+    private let settings: SettingsStore?
+    private let selectionManager: any SelectionManaging
+    private let captureService: any ScreenCapturing
+    private let ocrService: any TextRecognizing
+    private let processor: ObservedCaptureProcessor
     private let onEvent: ((CaptureFixture, CaptureEvent) -> Void)?
     private let resultDelivered = TestSignal()
     private lazy var controller = CaptureController(
-        modeProvider: { [weak self] in self?.savedMode ?? .box },
-        saveMode: { [weak self] in self?.savedMode = $0 },
+        modeProvider: { [weak self] in self?.settings?.lastSelectionMode ?? self?.savedMode ?? .box },
+        saveMode: { [weak self] mode in
+            self?.savedMode = mode
+            self?.settings?.selectCaptureMode(mode)
+        },
         toolbar: self.toolbar,
-        selectionManager: self.selections,
+        selectionManager: self.selectionManager,
         displayProvider: { [weak self] in self?.display },
         escapeMonitor: self.escape,
         processor: self.processor,
@@ -28,19 +35,30 @@ final class CaptureFixture {
         initialMode: CaptureMode = .box,
         display: SelectionDisplay? = testDisplay,
         toolbarCanShow: Bool = true,
+        toolbarCursorExclusionRect: ScreenRect? = nil,
         selectionCanPrepare: Bool = true,
+        settings: SettingsStore? = nil,
+        selectionManager: (any SelectionManaging)? = nil,
+        captureService: any ScreenCapturing = TestScreenCaptureService(),
+        ocrService: any TextRecognizing = TestTextRecognizer(),
+        clipboardService: any ClipboardWriting = TestClipboardWriter(),
         processor: (any CaptureProcessing)? = nil,
         onEvent: ((CaptureFixture, CaptureEvent) -> Void)? = nil,
     ) {
-        self.savedMode = initialMode
+        self.savedMode = settings?.lastSelectionMode ?? initialMode
         self.display = display
+        self.settings = settings
+        self.selectionManager = selectionManager ?? self.selections
+        self.captureService = captureService
+        self.ocrService = ocrService
         self.toolbar.canShow = toolbarCanShow
+        self.toolbar.cursorExclusionRect = toolbarCursorExclusionRect
         self.selections.canPrepare = selectionCanPrepare
-        self.processor = processor ?? CaptureProcessor(
-            captureService: TestScreenCaptureService(),
-            ocrService: TestTextRecognizer(),
-            clipboardService: TestClipboardWriter(),
-        )
+        self.processor = ObservedCaptureProcessor(base: processor ?? CaptureProcessor(
+            captureService: captureService,
+            ocrService: ocrService,
+            clipboardService: clipboardService,
+        ))
         self.onEvent = onEvent
     }
 
@@ -61,7 +79,10 @@ final class CaptureFixture {
     }
 
     var selectionIsVisible: Bool {
-        self.selections.isVisible
+        if let manager = self.selectionManager as? SelectionManager {
+            return manager.window?.isVisible == true
+        }
+        return self.selections.isVisible
     }
 
     var toolbarIsVisible: Bool {
@@ -117,7 +138,7 @@ final class CaptureFixture {
     }
 
     func beginSelection() {
-        self.selections.onEvent?(.started)
+        self.selections.beginSelection()
     }
 
     func cancelSelection() {
@@ -125,7 +146,7 @@ final class CaptureFixture {
     }
 
     func completeSelection(_ selection: Selection = boxSelection) {
-        self.selections.onEvent?(.completed(selection))
+        self.selections.completeSelection(selection)
     }
 
     func triggerEscape() {
@@ -134,6 +155,10 @@ final class CaptureFixture {
 
     func waitForResult() async throws {
         try await self.resultDelivered.wait()
+    }
+
+    func waitForProcessingToReturn() async throws {
+        try await self.processor.returned.wait()
     }
 
     private func record(_ event: CaptureEvent) {
@@ -146,7 +171,26 @@ final class CaptureFixture {
 
     isolated deinit {
         controller.cancel()
-        (processor as? TestCaptureProcessor)?.releasePendingProcessing()
+        (processor.base as? TestCaptureProcessor)?.releasePendingProcessing()
+        if let service = captureService as? SuspendedCaptureService {
+            Task { await service.releasePendingProcessing() }
+        }
+        if let service = ocrService as? SuspendedTextRecognizer {
+            Task { await service.releasePendingProcessing() }
+        }
+    }
+}
+
+/// Both processor and controller run on MainActor: the controller handles this
+/// return synchronously before the waiting test gets another actor turn.
+@MainActor
+private struct ObservedCaptureProcessor: CaptureProcessing {
+    let base: any CaptureProcessing
+    let returned = TestSignal()
+
+    func process(_ selection: Selection) async throws -> CaptureProcessingResult {
+        defer { self.returned.signal() }
+        return try await self.base.process(selection)
     }
 }
 
@@ -237,27 +281,6 @@ final class TestCaptureProcessor: CaptureProcessing {
     }
 }
 
-@MainActor
-private final class TestSignal {
-    private let stream: AsyncStream<Void>
-    private let continuation: AsyncStream<Void>.Continuation
-
-    init() {
-        (self.stream, self.continuation) = AsyncStream.makeStream()
-    }
-
-    func signal() {
-        self.continuation.yield(())
-    }
-
-    func wait() async throws {
-        var iterator = self.stream.makeAsyncIterator()
-        try #require(await iterator.next() != nil)
-    }
-
-    deinit { continuation.finish() }
-}
-
 let testDisplay = SelectionDisplay(
     id: 1,
     frame: .init(x: -1440, y: 900, width: 1440, height: 900),
@@ -277,6 +300,7 @@ let freehandSelection = Selection(
 /// These UI fakes are also used by the capture pipeline and settings suites.
 @MainActor
 final class TestCaptureToolbar: CaptureToolbarPresenting {
+    var cursorExclusionRect: ScreenRect?
     var canShow = true
     var isVisible = false
     var showCount = 0
@@ -315,7 +339,16 @@ final class TestSelectionManager: SelectionManaging {
     private(set) var prepareCount = 0
     private(set) var hideCount = 0
     private(set) var mode: CaptureMode?
+    private(set) var cursorExclusionRect: ScreenRect?
     var onEvent: ((SelectionEvent<Selection>) -> Void)?
+
+    func beginSelection() {
+        self.onEvent?(.started)
+    }
+
+    func completeSelection(_ selection: Selection = boxSelection) {
+        self.onEvent?(.completed(selection))
+    }
 
     func prepare(
         display _: SelectionDisplay,
@@ -332,6 +365,10 @@ final class TestSelectionManager: SelectionManaging {
 
     func setMode(_ mode: CaptureMode) {
         self.mode = mode
+    }
+
+    func setCursorExclusionRect(_ rect: ScreenRect?) {
+        self.cursorExclusionRect = rect
     }
 
     func hide() {

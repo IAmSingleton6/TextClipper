@@ -3,200 +3,155 @@ import AppKit
 import Testing
 
 struct OCRTextProcessorTests {
-    @Test func `orders rows and words with unequal glyph heights`() {
+    @Test(arguments: [false, true])
+    func `text is ordered by rows and words despite unequal glyph heights`(reversed: Bool) {
+        // GIVEN
         let blocks = [
             RecognizedTextBlock(text: "world", bounds: .init(x: 0.4, y: 0.8, width: 0.2, height: 0.09)),
             RecognizedTextBlock(text: "Second line.", bounds: .init(x: 0.1, y: 0.68, width: 0.6, height: 0.1)),
             RecognizedTextBlock(text: "Hello", bounds: .init(x: 0.1, y: 0.79, width: 0.2, height: 0.12)),
             RecognizedTextBlock(text: "Paragraph 2: 18%", bounds: .init(x: 0.1, y: 0.4, width: 0.6, height: 0.1)),
         ]
-        #expect(OCRTextProcessor().text(from: blocks) == "Hello world\nSecond line.\n\nParagraph 2: 18%")
-        #expect(OCRTextProcessor().text(from: blocks.reversed()) == OCRTextProcessor().text(from: blocks))
+
+        // WHEN
+        let text = OCRTextProcessor().text(from: reversed ? Array(blocks.reversed()) : blocks)
+
+        // THEN
+        #expect(text == "Hello world\nSecond line.\n\nParagraph 2: 18%")
     }
 
-    @Test func `cleanup preserves code spacing case punctuation and internal blank lines`() {
-        let processor = OCRTextProcessor()
-        #expect(processor.text(from: [RecognizedTextBlock(
-            text: " \r\nABC: 123!\r\n\r\n    let total =  42\r\nhttps://example.com?q=1\r\n ",
-            bounds: .zero,
-        )])
-            == "ABC: 123!\n\n    let total =  42\nhttps://example.com?q=1")
-        #expect(processor.text(from: [RecognizedTextBlock(text: " \t\n\r ", bounds: .zero)]).isEmpty)
-        #expect(processor.text(from: []).isEmpty)
-        #expect(processor.text(from: [RecognizedTextBlock(text: " \n", bounds: .zero)]).isEmpty)
+    @Test(arguments: ["\r\n", "\r"])
+    func `cleanup preserves code spacing case punctuation and internal blank lines`(newline: String) {
+        // GIVEN
+        let input = [" ", "ABC: 123!", "", "    let total =  42", "https://example.com?q=1", " "]
+            .joined(separator: newline)
+
+        // WHEN
+        let text = OCRTextProcessor().text(from: [RecognizedTextBlock(text: input, bounds: .zero)])
+
+        // THEN
+        #expect(text == "ABC: 123!\n\n    let total =  42\nhttps://example.com?q=1")
+    }
+
+    @Test(arguments: [" \t\n\r ", " \n"])
+    func `whitespace only observations produce no text`(input: String) {
+        #expect(OCRTextProcessor().text(from: [RecognizedTextBlock(text: input, bounds: .zero)]).isEmpty)
+    }
+
+    @Test func `no observations produce no text`() {
+        #expect(OCRTextProcessor().text(from: []).isEmpty)
     }
 }
 
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct OCRServiceTests {
     @Test(arguments: [false, true])
     func `recognizes light and dark text images`(dark: Bool) async throws {
+        // GIVEN
         let lines = ["Hello world", "Revenue increased by 18%.", "https://example.com"]
-        let image = try renderedText(lines, dark: dark)
+        let image = try TestImages.text(lines, dark: dark)
+
+        // WHEN
         let text = try await OCRService().recognizeText(from: image)
+
+        // THEN
         #expect(text == lines.joined(separator: "\n"))
     }
 
-    @Test func `freehand mask excludes text outside selected shape`() async throws {
-        let image = try renderedText(["OUTSIDE", "INSIDE"], dark: false,
-                                     positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
+    @Test func `freehand masking excludes text outside the selected shape`() async throws {
+        // GIVEN
+        let image = try TestImages.text(["OUTSIDE", "INSIDE"],
+                                        positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
         let masked = try ImageMasker().applyFreehandMask(to: image, points: [
             .init(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
             .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200),
         ])
-        #expect(try await OCRService().recognizeText(from: masked) == "INSIDE")
+
+        // WHEN
+        let text = try await OCRService().recognizeText(from: masked)
+
+        // THEN
+        #expect(text == "INSIDE")
     }
 
-    @Test func `blank image returns empty text and pre cancelled task throws`() async throws {
-        let image = try renderedText([], dark: false)
+    @Test func `a blank image produces no recognized text`() async throws {
+        let image = try TestImages.text([])
         #expect(try await OCRService().recognizeText(from: image).isEmpty)
+    }
+
+    @Test func `pre cancelled OCR throws cancellation instead of recognizing text`() async throws {
+        // GIVEN
+        let image = try TestImages.text([])
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
             return try await OCRService().recognizeText(from: image)
         }
-        do {
-            _ = try await task.value
-            Issue.record("Cancelled OCR must not return a result")
-        } catch is CancellationError {
-            // Expected; cancellation is preserved rather than turned into OCR failure.
-        }
-    }
 
-    private func renderedText(_ lines: [String], dark: Bool, positions: [CGPoint]? = nil) throws -> CGImage {
-        let context = try #require(CGContext(data: nil, width: 900, height: 300, bitsPerComponent: 8,
-                                             bytesPerRow: 3600, space: CGColorSpaceCreateDeviceRGB(),
-                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        NSGraphicsContext.saveGraphicsState()
-        defer { NSGraphicsContext.restoreGraphicsState() }
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        (dark ? NSColor.black : NSColor.white).setFill()
-        CGRect(x: 0, y: 0, width: 900, height: 300).fill()
-        for (index, line) in lines.enumerated() {
-            (line as NSString).draw(at: positions?[index] ?? .init(x: 30, y: 220 - index * 35), withAttributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular),
-                .foregroundColor: dark ? NSColor.white : NSColor.black,
-            ])
-        }
-        return try #require(context.makeImage())
+        // WHEN / THEN
+        await #expect(throws: CancellationError.self) { try await task.value }
     }
 }
 
-struct TestTextRecognizer: TextRecognizing {
-    func recognizeText(from _: CGImage) async throws -> String {
-        "Recognized fixture"
-    }
-}
-
-actor SuspendedTextRecognizer: TextRecognizing {
-    private var continuation: CheckedContinuation<String, Error>?
-    private(set) var started = false
-    func recognizeText(from _: CGImage) async throws -> String {
-        self.started = true
-        return try await withCheckedThrowingContinuation { self.continuation = $0 }
-    }
-
-    func finish(_ result: Result<String, Error>) {
-        self.continuation?.resume(with: result); self.continuation = nil
-    }
-}
-
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct OCRProcessingTests {
-    @Test func `cancelled OCR cannot deliver into new capture session`() async throws {
+    @Test(arguments: [false, true])
+    func `cancelled OCR cannot deliver text or errors into a new capture session`(fails: Bool) async throws {
         let recognizer = SuspendedTextRecognizer()
         let clipboard = TestClipboardWriter()
-        let manager = TestSelectionManager()
-        let toolbar = TestCaptureToolbar()
-        let display = SelectionDisplay(
-            id: 1,
-            frame: .init(x: 0, y: 0, width: 600, height: 400),
-            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
-        )
-        var deliveries = 0
-        let controller = CaptureController(
-            modeProvider: { .box },
-            saveMode: { _ in },
-            clipboardService: clipboard,
-            ocrService: recognizer,
-            captureService: TestScreenCaptureService(),
-            toolbar: toolbar,
-            selectionManager: manager,
-            displayProvider: { display },
-            onEvent: { event in
-                switch event {
-                case .textRecognized, .failed:
-                    deliveries += 1
-                default: break
-                }
-            },
-        )
-        controller.start()
-        manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(
-            displayID: 1,
-            rect: .init(x: 10, y: 20, width: 100, height: 60),
-            shape: .rectangle,
-        )))
-        for _ in 0 ..< 100 where await !(recognizer.started) {
-            try await Task.sleep(for: .milliseconds(2))
-        }
-        #expect(await recognizer.started)
-        #expect(controller.state == .processing)
-        #expect(!toolbar.isVisible && !manager.isVisible)
-        controller.cancel()
-        controller.start()
-        await recognizer.finish(.success("Late result"))
-        try await Task.sleep(for: .milliseconds(20))
-        #expect(deliveries == 0)
+        let capture = CaptureFixture(ocrService: recognizer, clipboardService: clipboard)
+
+        // GIVEN
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await recognizer.waitUntilStarted()
+        #expect(capture.state == .processing)
+        #expect(!capture.toolbarIsVisible)
+        #expect(!capture.selectionIsVisible)
+
+        // WHEN
+        capture.cancel()
+        capture.start()
+        try await recognizer.finish(fails ? .failure(OCRError.recognitionFailed) : .success("Late result"))
+        try await capture.waitForProcessingToReturn()
+
+        // THEN
+        #expect(capture.results.isEmpty)
         #expect(clipboard.texts.isEmpty)
-        #expect(controller.state == .toolbar)
-        controller.cancel()
+        #expect(clipboard.attempts.isEmpty)
+        #expect(capture.state == .toolbar)
+        #expect(capture.toolbarIsVisible)
+        #expect(capture.selectionIsVisible)
     }
 
-    @Test func `recognition failure returns idle without changing clipboard`() async throws {
+    @Test func `recognition failure returns idle without attempting to copy`() async throws {
         let recognizer = SuspendedTextRecognizer()
-        let manager = TestSelectionManager()
-        let display = SelectionDisplay(
-            id: 1,
-            frame: .init(x: 0, y: 0, width: 600, height: 400),
-            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
-        )
-        let clipboardChanges = NSPasteboard.general.changeCount
-        var failed = false
-        weak var observedController: CaptureController?
-        let controller = CaptureController(
-            modeProvider: { .box },
-            saveMode: { _ in },
-            clipboardService: TestClipboardWriter(),
-            ocrService: recognizer,
-            captureService: TestScreenCaptureService(),
-            toolbar: TestCaptureToolbar(),
-            selectionManager: manager,
-            displayProvider: { display },
-            onEvent: { event in
-                if case let .failed(error) = event {
-                    #expect(error as? OCRError == .recognitionFailed)
-                    #expect(observedController?.state == .idle)
-                    failed = true
-                }
-            },
-        )
-        observedController = controller
-        controller.start()
-        manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(
-            displayID: 1,
-            rect: .init(x: 10, y: 20, width: 100, height: 60),
-            shape: .rectangle,
-        )))
-        for _ in 0 ..< 100 where await !(recognizer.started) {
-            try await Task.sleep(for: .milliseconds(2))
+        let clipboard = TestClipboardWriter()
+        let capture = CaptureFixture(ocrService: recognizer, clipboardService: clipboard, onEvent: { capture, event in
+            if case .failed = event {
+                #expect(capture.isIdle)
+            }
+        })
+
+        // GIVEN
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await recognizer.waitUntilStarted()
+
+        // WHEN
+        try await recognizer.finish(.failure(OCRError.recognitionFailed))
+        try await capture.waitForResult()
+
+        // THEN
+        try #require(capture.results.count == 1)
+        guard case let .failed(error) = capture.results[0] else {
+            Issue.record("Recognition failure should deliver only failure")
+            return
         }
-        await recognizer.finish(.failure(OCRError.recognitionFailed))
-        for _ in 0 ..< 100 where !failed {
-            try await Task.sleep(for: .milliseconds(2))
-        }
-        #expect(failed)
-        #expect(NSPasteboard.general.changeCount == clipboardChanges)
+        #expect(error as? OCRError == .recognitionFailed)
+        #expect(capture.isIdle)
+        #expect(clipboard.texts.isEmpty)
+        #expect(clipboard.attempts.isEmpty)
     }
 }

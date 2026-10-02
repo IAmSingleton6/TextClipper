@@ -2,7 +2,7 @@ import CoreGraphics
 @testable import ScreenText
 import Testing
 
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct CaptureControllerTests {
     @Test func `toggling an idle session opens capture on the current display`() {
         let capture = CaptureFixture(onEvent: { capture, event in
@@ -346,8 +346,9 @@ struct CaptureControllerTests {
         #expect(capture.selections.mode == mode)
     }
 
-    @Test func `cancelling selection returns to idle without a result`() {
-        let capture = CaptureFixture()
+    @Test(arguments: [CaptureMode.box, .freehand])
+    func `cancelling selection returns to idle without a result`(mode: CaptureMode) {
+        let capture = CaptureFixture(initialMode: mode)
 
         // GIVEN
         capture.start()

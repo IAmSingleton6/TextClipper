@@ -88,7 +88,7 @@ extension CaptureControllerTests {
         #expect(capture.isIdle)
     }
 
-    @Test func `an empty result is delivered after capture returns to idle`() async throws {
+    @Test func `no text found is delivered after capture returns to idle`() async throws {
         let capture = CaptureFixture(processor: TestCaptureProcessor(), onEvent: { capture, event in
             if case .noTextFound = event {
                 #expect(capture.isIdle)
@@ -137,13 +137,13 @@ extension CaptureControllerTests {
         #expect(capture.results.isEmpty)
     }
 
-    @Test(arguments: [CaptureState.toolbar, .selecting(.box)])
+    @Test(arguments: [CaptureState.toolbar, .selecting(.box), .selecting(.freehand)])
     func `Escape cancels capture before processing`(state: CaptureState) {
-        let capture = CaptureFixture()
+        let capture = CaptureFixture(initialMode: state == .selecting(.freehand) ? .freehand : .box)
 
         // GIVEN
         capture.start()
-        if state == .selecting(.box) {
+        if state != .toolbar {
             capture.beginSelection()
         }
 
@@ -211,9 +211,10 @@ extension CaptureControllerTests {
         #expect(capture.results.isEmpty)
     }
 
-    @Test func `processing locks the selected mode`() async throws {
+    @Test(arguments: [CaptureMode.box, .freehand])
+    func `processing locks the selected mode`(mode: CaptureMode) async throws {
         let processor = TestCaptureProcessor(suspends: true)
-        let capture = CaptureFixture(processor: processor)
+        let capture = CaptureFixture(initialMode: mode, processor: processor)
 
         // GIVEN
         capture.start()
@@ -222,12 +223,12 @@ extension CaptureControllerTests {
         try await processor.waitUntilStarted()
 
         // WHEN
-        capture.requestMode(.freehand)
+        capture.requestMode(mode == .box ? .freehand : .box)
 
         // THEN
         #expect(capture.state == .processing)
-        #expect(capture.selectedMode == .box)
-        #expect(capture.savedMode == .box)
+        #expect(capture.selectedMode == mode)
+        #expect(capture.savedMode == mode)
     }
 
     @Test func `starting during processing does not reopen capture UI`() async throws {
