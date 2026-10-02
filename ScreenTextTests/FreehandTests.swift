@@ -38,15 +38,15 @@ struct FreehandTests {
         #expect(finished && view.selectionRect == nil)
     }
 
-    @Test func `legacy circle default migrates to draw`() throws {
+    @Test func `unsupported saved mode falls back to box and can be replaced`() throws {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        defaults.set("circle", forKey: "defaultSelectionMode")
-        let settings = SettingsStore(defaults: defaults)
-        #expect(settings.lastSelectionMode == .freehand)
-        settings.lastSelectionMode = .freehand
-        #expect(defaults.string(forKey: "defaultSelectionMode") == "freehand")
+        defaults.set("circle", forKey: "lastSelectionMode")
+        let settings = SettingsStore(persistence: SettingsPersistence(defaults: defaults))
+        #expect(settings.lastSelectionMode == .box)
+        settings.selectCaptureMode(.freehand)
+        #expect(defaults.string(forKey: "lastSelectionMode") == "freehand")
     }
 
     @Test(arguments: [CGFloat(1), 1.25, 2])

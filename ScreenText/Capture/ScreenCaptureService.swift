@@ -74,7 +74,7 @@ struct ScreenCaptureService: ScreenCapturing {
     @MainActor
     static func capturableWindowIDs(in windows: [NSWindow]) -> Set<CGWindowID> {
         Set(windows.compactMap { window -> CGWindowID? in
-            guard !(window is NSPanel) else { return nil }
+            guard !(window is NSPanel), !(window is SelectionWindow) else { return nil }
             return self.capturableWindowID(for: window.windowNumber)
         })
     }

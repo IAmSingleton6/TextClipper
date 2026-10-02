@@ -1,5 +1,6 @@
 import AppKit
 @testable import ScreenText
+import SwiftUI
 import Testing
 
 @MainActor
@@ -25,8 +26,7 @@ struct CaptureToolbarWindowTests {
         defer { panel.hide(); NSCursor.arrow.set() }
         let display = SelectionDisplay(id: 1, frame: .init(x: -10000, y: -10000, width: 600, height: 400),
                                        visibleFrame: .init(x: -10000, y: -10000, width: 600, height: 400))
-        let model = CaptureToolbarModel()
-        #expect(panel.show(display: display, model: model, onAction: { _ in }))
+        #expect(panel.show(display: display, mode: .box, onAction: { _ in }))
         #expect(NSCursor.current == .crosshair)
         let view = try #require(panel.contentView)
         let event = try #require(NSEvent.mouseEvent(with: .mouseMoved, location: .zero,
@@ -35,9 +35,11 @@ struct CaptureToolbarWindowTests {
                                                     eventNumber: 0, clickCount: 0, pressure: 0))
         view.mouseEntered(with: event)
         #expect(NSCursor.current == .arrow)
-        model.mode = .freehand
+        panel.setMode(.freehand)
+        #expect((panel.contentView as? NSHostingView<CaptureToolbarView>)?.rootView.mode == .freehand)
         #expect(NSCursor.current == .arrow)
-        model.mode = .box
+        panel.setMode(.box)
+        #expect((panel.contentView as? NSHostingView<CaptureToolbarView>)?.rootView.mode == .box)
         #expect(NSCursor.current == .arrow)
         view.mouseExited(with: event)
         #expect(NSCursor.current == .crosshair)

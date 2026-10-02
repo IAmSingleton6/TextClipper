@@ -5,38 +5,17 @@ enum CaptureToolbarAction {
     case cancel
 }
 
-@MainActor @Observable
-final class CaptureToolbarModel {
-    var mode: CaptureMode = .box
-}
-
 struct CaptureToolbarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredMode: CaptureMode?
     @State private var hoveringCancel = false
 
-    let model: CaptureToolbarModel
+    let mode: CaptureMode
     let onAction: (CaptureToolbarAction) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(
-                action: {
-                    self.onAction(.cancel)
-                },
-                label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 32, height: 34)
-                        .background(.white.opacity(self.hoveringCancel ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 8))
-                        .contentShape(Rectangle())
-                }
-            )
-            .buttonStyle(.plain)
-            .onHover { self.hoveringCancel = $0 }
-            .accessibilityLabel("Cancel capture")
-            .help("Cancel (Esc)")
-            .keyboardShortcut(.cancelAction)
+            self.cancelButton()
 
             Divider()
                 .frame(height: 24)
@@ -54,9 +33,29 @@ struct CaptureToolbarView: View {
         }
         .preferredColorScheme(.dark)
         .fixedSize()
-        .animation(self.reduceMotion ? nil : .easeOut(duration: 0.12), value: self.model.mode)
+        .animation(self.reduceMotion ? nil : .easeOut(duration: 0.12), value: self.mode)
         .animation(self.reduceMotion ? nil : .easeOut(duration: 0.12), value: self.hoveredMode)
         .animation(self.reduceMotion ? nil : .easeOut(duration: 0.12), value: self.hoveringCancel)
+    }
+
+    private func cancelButton() -> some View {
+        Button {
+            self.onAction(.cancel)
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 32, height: 34)
+                .background(
+                    .white.opacity(self.hoveringCancel ? 0.12 : 0),
+                    in: RoundedRectangle(cornerRadius: 8),
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { self.hoveringCancel = $0 }
+        .accessibilityLabel("Cancel capture")
+        .help("Cancel (Esc)")
+        .keyboardShortcut(.cancelAction)
     }
 
     private func modeButton(_ mode: CaptureMode, title: String, symbol: String) -> some View {
@@ -69,7 +68,7 @@ struct CaptureToolbarView: View {
                 .frame(height: 34)
                 .background {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(.white.opacity(self.model.mode == mode ? 0.22 : (self.hoveredMode == mode ? 0.1 : 0)))
+                        .fill(.white.opacity(self.mode == mode ? 0.22 : (self.hoveredMode == mode ? 0.1 : 0)))
                 }
                 .contentShape(Rectangle())
         }
@@ -82,8 +81,8 @@ struct CaptureToolbarView: View {
             }
         }
         .accessibilityLabel("\(title) selection")
-        .accessibilityValue(self.model.mode == mode ? "Selected" : "Not selected")
-        .accessibilityAddTraits(self.model.mode == mode ? .isSelected : [])
+        .accessibilityValue(self.mode == mode ? "Selected" : "Not selected")
+        .accessibilityAddTraits(self.mode == mode ? .isSelected : [])
         .help(mode == .freehand ? "Click and hold to draw around text" : "Box selection")
     }
 }

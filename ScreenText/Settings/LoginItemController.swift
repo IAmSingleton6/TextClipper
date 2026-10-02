@@ -8,7 +8,8 @@ protocol LoginItemManaging {
     func unregister() throws
 }
 
-@MainActor private struct AppLoginItem: LoginItemManaging {
+@MainActor
+private struct AppLoginItem: LoginItemManaging {
     var status: SMAppService.Status {
         SMAppService.mainApp.status
     }
@@ -22,17 +23,19 @@ protocol LoginItemManaging {
     }
 }
 
-@MainActor @Observable
+@MainActor
+@Observable
 final class LoginItemController {
     private let service: any LoginItemManaging
     private(set) var status: SMAppService.Status
     private(set) var message: String?
-    var isOn: Bool {
-        self.status == .enabled || self.status == .requiresApproval
+
+    var isEnabled: Bool {
+        get { self.status == .enabled || self.status == .requiresApproval }
+        set { self.setEnabled(newValue) }
     }
 
-    init(service: (any LoginItemManaging)? = nil) {
-        let service = service ?? AppLoginItem()
+    init(service: any LoginItemManaging = AppLoginItem()) {
         self.service = service
         self.status = service.status
     }
@@ -52,6 +55,7 @@ final class LoginItemController {
         } catch {
             self.message = "Could not change launch at login. Please try again."
         }
+
         self.refresh()
     }
 

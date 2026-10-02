@@ -61,23 +61,34 @@ struct MultiDisplayTests {
                 #expect(prepared)
                 let window = try #require(manager.window)
                 #expect(window.frame == frame)
-                window.selectionView.mouseDown(with: makeEvent(.leftMouseDown, at: start, window: window))
+                window.selectionView.mouseDown(with: self.makeEvent(.leftMouseDown, at: start, window: window))
                 if mode == .freehand {
-                    window.selectionView.mouseDragged(with: makeEvent(.leftMouseDragged, at: CGPoint(x: end.x, y: start.y), window: window))
+                    window.selectionView.mouseDragged(with: self.makeEvent(
+                        .leftMouseDragged,
+                        at: CGPoint(x: end.x, y: start.y),
+                        window: window,
+                    ))
                 }
-                window.selectionView.mouseDragged(with: makeEvent(.leftMouseDragged, at: end, window: window))
-                window.selectionView.mouseUp(with: makeEvent(.leftMouseUp, at: end, window: window))
+                window.selectionView.mouseDragged(with: self.makeEvent(.leftMouseDragged, at: end, window: window))
+                window.selectionView.mouseUp(with: self.makeEvent(.leftMouseUp, at: end, window: window))
                 #expect(result?.displayID == 42)
                 #expect(result?.rect == CGRect(x: 100, y: 50, width: 200, height: 200))
-                #expect(result.map { mode.accepts($0.shape) } == true)
+                guard let shape = result?.shape else {
+                    Issue.record("Valid drag did not produce a shape")
+                    continue
+                }
+                switch shape {
+                case .rectangle: #expect(mode == .box)
+                case .freehand: #expect(mode == .freehand)
+                }
             }
         }
     }
-    
+
     func makeEvent(
         _ type: NSEvent.EventType,
         at point: CGPoint,
-        window: NSWindow
+        window: NSWindow,
     ) -> NSEvent {
         guard let event = NSEvent.mouseEvent(
             with: type,
@@ -88,14 +99,13 @@ struct MultiDisplayTests {
             context: nil,
             eventNumber: 0,
             clickCount: 1,
-            pressure: 1
+            pressure: 1,
         ) else {
             fatalError("Failed to create mouse event")
         }
 
         return event
     }
-
 
     @Test(arguments: [CGFloat(1), 1.25, 1.5, 2, 3])
     func `scales corners and entire display without global origin`(scale: CGFloat) throws {

@@ -37,7 +37,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         let captureItem = NSMenuItem(title: "Capture Text", action: #selector(captureText), keyEquivalent: "")
         captureItem.target = self
-        captureItem.setShortcut(for: .captureText)
+        captureItem.setShortcut(for: AppShortcuts.captureText)
         self.captureItem = captureItem
         menu.addItem(captureItem)
         menu.addItem(.separator())
@@ -62,11 +62,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_: NSMenu) {
         // AppKit handles the menu key equivalent while tracking; avoid a second global invocation.
-        KeyboardShortcuts.disable(.captureText)
+        KeyboardShortcuts.disable(AppShortcuts.captureText)
     }
 
     func menuDidClose(_: NSMenu) {
-        KeyboardShortcuts.enable(.captureText)
+        KeyboardShortcuts.enable(AppShortcuts.captureText)
     }
 
     @objc private func captureText() {

@@ -25,9 +25,7 @@ final class CaptureController {
     }
 
     var onEvent: ((CaptureEvent) -> Void)?
-    var selectedMode: CaptureMode {
-        self.toolbarModel.mode
-    }
+    private(set) var selectedMode: CaptureMode = .box
 
     private let clipboardService: any ClipboardWriting
     private let ocrService: any TextRecognizing
@@ -40,7 +38,6 @@ final class CaptureController {
     private let saveMode: (CaptureMode) -> Void
     private var lastSelectedMode: CaptureMode?
     private let displayProvider: () -> SelectionDisplay?
-    private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
 
     init(clipboardService: any ClipboardWriting = ClipboardService(),
@@ -72,9 +69,10 @@ final class CaptureController {
 
     func start() {
         guard !self.isActive, let display = displayProvider() else { return }
-        self.toolbarModel.mode = self.savedModeProvider?() ?? self.lastSelectedMode ?? .box
+        self.selectedMode = self.savedModeProvider?() ?? self.lastSelectedMode ?? .box
         guard self.selectionManager.prepare(
-            display: display, mode: self.toolbarModel.mode,
+            display: display,
+            mode: self.selectedMode,
             onEvent: { [weak self] event in
                 switch event {
                 case .started: self?.selectionStarted()
@@ -84,7 +82,8 @@ final class CaptureController {
             },
         ) else { return }
         guard self.toolbar.show(
-            display: display, model: self.toolbarModel,
+            display: display,
+            mode: self.selectedMode,
             onAction: { [weak self] action in
                 switch action {
                 case let .selectMode(mode): self?.selectMode(mode)
@@ -104,9 +103,10 @@ final class CaptureController {
 
     func selectMode(_ mode: CaptureMode) {
         guard self.state == .toolbar else { return }
-        self.toolbarModel.mode = mode
+        self.selectedMode = mode
         self.lastSelectedMode = mode
         self.saveMode(mode)
+        self.toolbar.setMode(mode)
         self.selectionManager.setMode(mode)
     }
 
@@ -135,7 +135,7 @@ final class CaptureController {
     }
 
     private func selectionCompleted(_ selection: Selection) {
-        guard case let .selecting(mode) = state, mode.accepts(selection.shape) else { return }
+        guard case .selecting = self.state else { return }
         self.hideSelectionUI()
         self.state = .processing
         let id = UUID()
