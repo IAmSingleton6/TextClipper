@@ -44,7 +44,7 @@ struct CaptureFeedbackTests {
         feedback.failed(OCRError.recognitionFailed)
         #expect(notifications.message == "Could not read selected text")
         feedback.failed(ScreenCaptureError.displayNotFound)
-        #expect(notifications.message == "Could not capture selection")
+        #expect(notifications.message == "Display is no longer available")
         feedback.failed(ScreenCaptureError.permissionDenied)
         #expect(permissionRequests == 1)
         #expect(notifications.message == nil)

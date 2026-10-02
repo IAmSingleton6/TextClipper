@@ -29,7 +29,7 @@ struct ClipboardService: ClipboardWriting {
     @discardableResult
     func copy(_ text: String) throws -> Bool {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        pasteboard.clearContents()
+        _ = pasteboard.clearContents()
         guard pasteboard.setString(text, forType: .string) else { throw ClipboardError.writeFailed }
         return true
     }

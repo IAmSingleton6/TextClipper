@@ -21,6 +21,12 @@ final class SelectionWindow: NSPanel {
         selectionView.setAccessibilityHelp("Drag around text using the selected shape. Press Escape to cancel.")
     }
 
+    // This overlay deliberately covers the full display, including the menu bar.
+    // AppKit's normal visible-frame constraint can otherwise shift its origin.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }

@@ -38,7 +38,7 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
         let visible = display.visibleFrame
         setFrameOrigin(CGPoint(x: visible.midX - frame.width / 2,
                                y: min(visible.minY + 96, visible.maxY - frame.height)))
-        orderFrontRegardless()
+        showFeedback()
         dismissalTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }

@@ -9,11 +9,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.permissionManager.showPermissionRequired()
     })
     private lazy var captureController = CaptureController(defaultModeProvider: { [weak self] in self?.settings.defaultMode ?? .box })
+    private var displayObserver: DisplayConfigurationObserver?
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        displayObserver = DisplayConfigurationObserver { [weak self] in
+            // An overlay and its local coordinates belong to one display layout.
+            self?.captureController.cancel()
+            self?.feedbackController.hide()
+        }
         captureController.onCaptureStarted = { [weak self] display in
             self?.feedbackController.beginCapture(on: display)
         }
@@ -48,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        displayObserver = nil
         shortcutManager?.stop()
         shortcutManager = nil
         captureController.cancel()
