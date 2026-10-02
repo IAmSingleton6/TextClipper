@@ -10,8 +10,8 @@ protocol TextRecognizing: Sendable {
 }
 
 struct OCRService: TextRecognizing {
-    // This nonisolated async service runs Vision away from the main actor.
-    // Requests and images live only for the duration of this operation.
+    /// This nonisolated async service runs Vision away from the main actor.
+    /// Requests and images live only for the duration of this operation.
     func recognizeText(from image: CGImage) async throws -> String {
         try Task.checkCancellation()
         let request = VNRecognizeTextRequest()

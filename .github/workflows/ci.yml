@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  checks:
+    name: Format, lint, build, tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install style tools
+        run: brew install swiftformat swiftlint
+      - name: Check formatting (all violations fail)
+        run: ./Scripts/check.sh format
+      - name: Check lint (warnings and errors fail)
+        run: ./Scripts/check.sh lint
+      - name: Build universal Release app
+        run: ./Scripts/check.sh build ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO
+      - name: Test
+        run: ./Scripts/check.sh test -resultBundlePath build/TestResults.xcresult
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/TestResults.xcresult
+          if-no-files-found: ignore
+
+  release:
+    name: Sign, notarize, package, release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: checks
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install build-phase lint tool
+        run: brew install swiftlint
+      - name: Build signed app and notarized DMG
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: ./Scripts/release.sh
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/*.dmg dist/SHA256SUMS \
+            --verify-tag --title "ScreenText $RELEASE_TAG" --generate-notes

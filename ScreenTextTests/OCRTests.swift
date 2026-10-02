@@ -104,8 +104,19 @@ struct OCRProcessingTests {
         let clipboard = TestClipboardWriter()
         let manager = TestSelectionManager()
         let toolbar = TestCaptureToolbar()
-        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(clipboardService: clipboard, ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: .init(x: 0, y: 0, width: 600, height: 400),
+            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
+        )
+        let controller = CaptureController(
+            clipboardService: clipboard,
+            ocrService: recognizer,
+            captureService: TestScreenCaptureService(),
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+        )
         var deliveries = 0
         controller.onEvent = { event in
             switch event {
@@ -118,7 +129,11 @@ struct OCRProcessingTests {
         }
         controller.start()
         manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(displayID: 1, rect: .init(x: 10, y: 20, width: 100, height: 60), shape: .rectangle)))
+        manager.onEvent?(.completed(Selection(
+            displayID: 1,
+            rect: .init(x: 10, y: 20, width: 100, height: 60),
+            shape: .rectangle,
+        )))
         for _ in 0 ..< 100 where await !(recognizer.started) {
             try await Task.sleep(for: .milliseconds(2))
         }
@@ -138,8 +153,19 @@ struct OCRProcessingTests {
     @Test func `recognition failure returns idle without changing clipboard`() async throws {
         let recognizer = SuspendedTextRecognizer()
         let manager = TestSelectionManager()
-        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-        let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: recognizer, captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: manager, displayProvider: { display })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: .init(x: 0, y: 0, width: 600, height: 400),
+            visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
+        )
+        let controller = CaptureController(
+            clipboardService: TestClipboardWriter(),
+            ocrService: recognizer,
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: { display },
+        )
         let clipboardChanges = NSPasteboard.general.changeCount
         var failed = false
         controller.onEvent = { event in
@@ -153,7 +179,11 @@ struct OCRProcessingTests {
         }
         controller.start()
         manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(displayID: 1, rect: .init(x: 10, y: 20, width: 100, height: 60), shape: .rectangle)))
+        manager.onEvent?(.completed(Selection(
+            displayID: 1,
+            rect: .init(x: 10, y: 20, width: 100, height: 60),
+            shape: .rectangle,
+        )))
         for _ in 0 ..< 100 where await !(recognizer.started) {
             try await Task.sleep(for: .milliseconds(2))
         }

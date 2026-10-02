@@ -117,13 +117,13 @@ struct ClipboardProcessingTests {
         }
         controller.start()
         let window = try #require(manager.window)
-        let event = { (type: NSEvent.EventType, point: CGPoint) in
-            NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                               windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-        }
-        window.selectionView.mouseDown(with: event(.leftMouseDown, .init(x: 300, y: 200)))
+        window.selectionView.mouseDown(
+            with: makeEvent(.leftMouseDown, at: .init(x: 300, y: 200), window: window)
+        )
         #expect(!toolbar.isVisible)
-        window.selectionView.mouseUp(with: event(.leftMouseUp, .init(x: 100, y: 50)))
+        window.selectionView.mouseUp(
+            with: makeEvent(.leftMouseUp, at: .init(x: 100, y: 50), window: window)
+        )
         #expect(manager.window == nil)
         #expect(controller.state == .processing)
         for _ in 0 ..< 1500 where !finished {
@@ -135,6 +135,28 @@ struct ClipboardProcessingTests {
         editor.isRichText = false
         #expect(editor.readSelection(from: board))
         #expect(editor.string == "Hello world\nTotal: 42")
+    }
+    
+    func makeEvent(
+        _ type: NSEvent.EventType,
+        at point: CGPoint,
+        window: NSWindow
+    ) -> NSEvent {
+        guard let event = NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ) else {
+            fatalError("Failed to create mouse event")
+        }
+
+        return event
     }
 
     @Test func `success copies before completion and returns idle`() async throws {
@@ -203,7 +225,9 @@ struct ClipboardProcessingTests {
         #expect(clipboard.texts.isEmpty)
     }
 
-    private func controller(clipboard: TestClipboardWriter, text: String, manager: TestSelectionManager) -> CaptureController {
+    private func controller(clipboard: TestClipboardWriter, text: String,
+                            manager: TestSelectionManager) -> CaptureController
+    {
         CaptureController(clipboardService: clipboard, ocrService: FixedTextRecognizer(text: text),
                           captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(),
                           selectionManager: manager, displayProvider: {
@@ -215,7 +239,11 @@ struct ClipboardProcessingTests {
     private func startSelection(_ controller: CaptureController, manager: TestSelectionManager) {
         controller.start()
         manager.onEvent?(.started)
-        manager.onEvent?(.completed(Selection(displayID: 1, rect: .init(x: 10, y: 20, width: 100, height: 60), shape: .rectangle)))
+        manager.onEvent?(.completed(Selection(
+            displayID: 1,
+            rect: .init(x: 10, y: 20, width: 100, height: 60),
+            shape: .rectangle,
+        )))
     }
 }
 

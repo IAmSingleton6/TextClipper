@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+command -v swiftformat >/dev/null || { echo 'Install SwiftFormat: brew install swiftformat' >&2; exit 1; }
+files=()
+while IFS= read -r -d '' file; do
+  [[ "$file" == *.swift ]] || continue
+  if ! git diff --quiet -- "$file"; then
+    echo "pre-commit: $file has staged and unstaged changes. Stage the complete file before automatic formatting." >&2
+    exit 1
+  fi
+  files+=("$file")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if (( ${#files[@]} )); then
+  swiftformat "${files[@]}" --config .swiftformat --cache ignore
+fi
+./Scripts/check.sh lint
+if (( ${#files[@]} )); then
+  git add -- "${files[@]}"
+fi

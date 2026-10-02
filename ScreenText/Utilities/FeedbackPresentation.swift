@@ -1,7 +1,7 @@
 import AppKit
 
 extension NSWindow {
-    // Animate only feedback appearance; selection teardown is always synchronous.
+    /// Animate only feedback appearance; selection teardown is always synchronous.
     func showFeedback() {
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         alphaValue = reduceMotion ? 1 : 0

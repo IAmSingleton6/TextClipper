@@ -4,7 +4,8 @@ import SwiftUI
 @MainActor
 protocol CaptureToolbarPresenting: AnyObject {
     var cursorExclusionRect: CGRect? { get }
-    func show(display: SelectionDisplay, model: CaptureToolbarModel, onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool
+    func show(display: SelectionDisplay, model: CaptureToolbarModel,
+              onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool
     func hide()
 }
 
@@ -44,7 +45,9 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
         false
     }
 
-    func show(display: SelectionDisplay, model: CaptureToolbarModel, onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool {
+    func show(display: SelectionDisplay, model: CaptureToolbarModel,
+              onAction: @escaping (CaptureToolbarAction) -> Void) -> Bool
+    {
         let view = CaptureToolbarView(model: model, onAction: onAction)
         let hostingView = CaptureToolbarHostingView(rootView: view)
         contentView = hostingView

@@ -20,13 +20,18 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(action: { self.onAction(.cancel) }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 32, height: 34)
-                    .background(.white.opacity(self.hoveringCancel ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 8))
-                    .contentShape(Rectangle())
-            }
+            Button(
+                action: {
+                    self.onAction(.cancel)
+                },
+                label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 32, height: 34)
+                        .background(.white.opacity(self.hoveringCancel ? 0.12 : 0), in: RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                }
+            )
             .buttonStyle(.plain)
             .onHover { self.hoveringCancel = $0 }
             .accessibilityLabel("Cancel capture")

@@ -52,7 +52,8 @@ final class SelectionView: NSView {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
         addTrackingArea(NSTrackingArea(rect: .zero,
-                                       options: [.cursorUpdate, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+                                       options: [.cursorUpdate, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
     }
 
     override func mouseEntered(with _: NSEvent) {
@@ -156,7 +157,8 @@ final class SelectionView: NSView {
         NSColor.black.withAlphaComponent(0.28).setFill()
         dimmedArea.fill()
 
-        let hasBorder = self.mode == .freehand ? self.drawnPoints.count > 1 : selectionRect.width > 1 && selectionRect.height > 1
+        let hasBorder = self.mode == .freehand ? self.drawnPoints.count > 1 : selectionRect.width > 1 && selectionRect
+            .height > 1
         if hasBorder {
             let border = self.selectionPath(in: selectionRect.insetBy(dx: 0.5, dy: 0.5))
             // A dark under-stroke keeps the bright edge visible on light content.

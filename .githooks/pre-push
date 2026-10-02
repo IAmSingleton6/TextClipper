@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+./Scripts/check.sh format
+./Scripts/check.sh lint
+./Scripts/check.sh test
