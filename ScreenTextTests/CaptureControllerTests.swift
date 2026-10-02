@@ -4,7 +4,7 @@ import Testing
 @Suite @MainActor
 struct CaptureControllerTests {
     @Test func repeatedInvocationCancelsAndCanStartAgain() {
-        let controller = CaptureController(toolbar: TestCaptureToolbar())
+        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -19,7 +19,7 @@ struct CaptureControllerTests {
     }
 
     @Test func startAndCancelAreIdempotent() {
-        let controller = CaptureController(toolbar: TestCaptureToolbar())
+        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -34,7 +34,7 @@ struct CaptureControllerTests {
 
     @Test func modeButtonsUpdateTheToolbarAndNewSessionsDefaultToBox() {
         let toolbar = TestCaptureToolbar()
-        let controller = CaptureController(toolbar: toolbar)
+        let controller = CaptureController(toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         controller.selectMode(.circle)
         #expect(controller.selectedMode == .box)
         controller.start()
@@ -60,13 +60,73 @@ struct CaptureControllerTests {
     @Test func missingDisplayLeavesTheControllerIdle() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
-        let controller = CaptureController(toolbar: toolbar)
+        let controller = CaptureController(toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
         controller.start()
         #expect(!controller.isActive)
         #expect(changes.isEmpty)
     }
+    @Test func selectionHidesToolbarAndDeliversResultAfterTeardown() {
+        let toolbar = TestCaptureToolbar()
+        let selections = TestSelectionManager()
+        let controller = CaptureController(toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 25, y: 40, width: 100, height: 60), shape: .rectangle)
+        var completed: Selection?
+        controller.onSelectionCompleted = {
+            #expect(!toolbar.isVisible)
+            #expect(!selections.isVisible)
+            #expect(controller.state == .idle)
+            completed = $0
+        }
+        controller.start()
+        #expect(controller.state == .toolbar)
+        selections.onStarted?()
+        #expect(controller.state == .selecting(.box))
+        #expect(!toolbar.isVisible)
+        controller.selectMode(.circle)
+        #expect(controller.selectedMode == .box)
+        selections.onCompleted?(selection)
+        #expect(completed == selection)
+        #expect(!controller.isActive)
+    }
+
+    @Test func circleDragLocksModeAndCompletesAfterTeardown() {
+        let toolbar = TestCaptureToolbar()
+        let selections = TestSelectionManager()
+        let controller = CaptureController(toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse)
+        var completed: Selection?
+        controller.onSelectionCompleted = {
+            #expect(controller.state == .idle)
+            #expect(!toolbar.isVisible)
+            #expect(!selections.isVisible)
+            completed = $0
+        }
+        controller.start()
+        controller.selectMode(.circle)
+        selections.onStarted?()
+        #expect(controller.state == .selecting(.circle))
+        #expect(!toolbar.isVisible)
+        controller.selectMode(.box)
+        #expect(controller.selectedMode == .circle)
+        selections.onCompleted?(selection)
+        #expect(completed == selection)
+    }
+
+    @Test func cancellingDragDoesNotDeliverSelection() {
+        let selections = TestSelectionManager()
+        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
+        var completed = false
+        controller.onSelectionCompleted = { _ in completed = true }
+        controller.start()
+        selections.onStarted?()
+        selections.onCancelled?()
+        #expect(controller.state == .idle)
+        #expect(!selections.isVisible)
+        #expect(!completed)
+    }
+
 }
 
 @MainActor
@@ -79,7 +139,7 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
     var onModeSelected: ((CaptureMode) -> Void)?
     var onCancel: (() -> Void)?
 
-    func show(model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool {
+    func show(display: SelectionDisplay, model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool {
         guard canShow else { return false }
         self.model = model
         self.onModeSelected = onModeSelected
@@ -94,5 +154,33 @@ final class TestCaptureToolbar: CaptureToolbarPresenting {
         hideCount += 1
         onModeSelected = nil
         onCancel = nil
+    }
+}
+
+private let testDisplay = SelectionDisplay(id: 1, frame: .init(x: -1440, y: 900, width: 1440, height: 900), visibleFrame: .init(x: -1440, y: 900, width: 1440, height: 875))
+
+@MainActor
+final class TestSelectionManager: SelectionManaging {
+    var isVisible = false
+    var onStarted: (() -> Void)?
+    var onCompleted: ((Selection) -> Void)?
+    var onCancelled: (() -> Void)?
+
+    func prepare(display: SelectionDisplay, mode: CaptureMode, onStarted: @escaping () -> Void,
+                 onCompleted: @escaping (Selection) -> Void, onCancelled: @escaping () -> Void) -> Bool {
+        isVisible = true
+        self.onStarted = onStarted
+        self.onCompleted = onCompleted
+        self.onCancelled = onCancelled
+        return true
+    }
+
+    func setMode(_ mode: CaptureMode) {}
+
+    func hide() {
+        isVisible = false
+        onStarted = nil
+        onCompleted = nil
+        onCancelled = nil
     }
 }

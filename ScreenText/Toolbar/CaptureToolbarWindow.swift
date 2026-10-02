@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 protocol CaptureToolbarPresenting: AnyObject {
-    func show(model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool
+    func show(display: SelectionDisplay, model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool
     func hide()
 }
 
@@ -28,15 +28,12 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    func show(model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) else {
-            return false
-        }
+    func show(display: SelectionDisplay, model: CaptureToolbarModel, onModeSelected: @escaping (CaptureMode) -> Void, onCancel: @escaping () -> Void) -> Bool {
         let view = CaptureToolbarView(model: model, onModeSelected: onModeSelected, onCancel: onCancel)
         let hostingView = CaptureToolbarHostingView(rootView: view)
         contentView = hostingView
         setContentSize(hostingView.fittingSize)
-        setFrame(Self.positionedFrame(size: frame.size, visibleFrame: screen.visibleFrame), display: true)
+        setFrame(Self.positionedFrame(size: frame.size, visibleFrame: display.visibleFrame), display: true)
         // Ordering without activation leaves the user's current application focused.
         orderFrontRegardless()
         return true
