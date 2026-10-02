@@ -3,91 +3,159 @@ import KeyboardShortcuts
 @testable import ScreenText
 import Testing
 
-@Suite(.serialized) @MainActor
-struct GlobalShortcutManagerTests {
-    @Test func `injected source delivers captures and supports restart`() {
-        let source = TestShortcutSource()
-        var captures = 0
-        let manager = GlobalShortcutManager(source: source) { captures += 1 }
+extension DesktopTests {
+    @MainActor
+    struct GlobalShortcutManagerTests {
+        @Test func `stopping before listening has no effect`() {
+            let shortcut = ShortcutFixture()
+            shortcut.manager.stop()
+            #expect(shortcut.source.stops == 0)
+        }
 
-        manager.stop()
-        #expect(source.stops == 0)
-        manager.start()
-        manager.start()
-        #expect(source.starts == 1)
-        source.onTrigger?()
-        #expect(captures == 1)
+        @Test func `starting twice subscribes only once`() {
+            let shortcut = ShortcutFixture()
 
-        manager.stop()
-        manager.stop()
-        #expect(source.stops == 1)
-        source.onTrigger?()
-        #expect(captures == 1)
+            // GIVEN
+            shortcut.manager.start()
 
-        manager.start()
-        #expect(source.starts == 2)
-        source.onTrigger?()
-        #expect(captures == 2)
-        manager.stop()
+            // WHEN
+            shortcut.manager.start()
+
+            // THEN
+            #expect(shortcut.source.starts == 1)
+        }
+
+        @Test func `a shortcut trigger requests one capture`() {
+            let shortcut = ShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+
+            // WHEN
+            shortcut.trigger()
+
+            // THEN
+            #expect(shortcut.captures == 1)
+        }
+
+        @Test func `stopping twice unsubscribes only once`() {
+            let shortcut = ShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+            shortcut.manager.stop()
+
+            // WHEN
+            shortcut.manager.stop()
+
+            // THEN
+            #expect(shortcut.source.stops == 1)
+        }
+
+        @Test func `a stopped shortcut no longer requests captures`() {
+            let shortcut = ShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+            shortcut.trigger()
+            shortcut.manager.stop()
+
+            // WHEN
+            shortcut.trigger()
+
+            // THEN
+            #expect(shortcut.captures == 1)
+        }
+
+        @Test func `restarting restores shortcut delivery`() {
+            let shortcut = ShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+            shortcut.trigger()
+            shortcut.manager.stop()
+
+            // WHEN
+            shortcut.manager.start()
+            shortcut.trigger()
+
+            // THEN
+            #expect(shortcut.source.starts == 2)
+            #expect(shortcut.captures == 2)
+        }
+
+        @Test func `releasing a manager stops its retained source`() {
+            let source = TestShortcutSource()
+            var manager: GlobalShortcutManager? = GlobalShortcutManager(source: source, onCapture: {})
+
+            // GIVEN
+            manager?.start()
+
+            // WHEN
+            manager = nil
+
+            // THEN
+            #expect(source.stops == 1)
+            #expect(source.onTrigger == nil)
+        }
+
+        @Test func `the initial capture shortcut is Command Shift 2`() {
+            #expect(AppShortcuts.captureText.initialShortcut == .init(.two, modifiers: [.command, .shift]))
+        }
+
+        @Test func `starting a native shortcut claims its system hotkey`() throws {
+            let shortcut = try NativeShortcutFixture()
+
+            // WHEN
+            shortcut.manager.start()
+            shortcut.manager.start()
+
+            // THEN
+            #expect(shortcut.probeRegistration() == eventHotKeyExistsErr)
+        }
+
+        @Test func `stopping a native shortcut releases its system hotkey`() throws {
+            let shortcut = try NativeShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+            try #require(shortcut.probeRegistration() == eventHotKeyExistsErr)
+
+            // WHEN
+            shortcut.manager.stop()
+
+            // THEN
+            #expect(shortcut.probeRegistration() == noErr)
+        }
+
+        @Test func `restarting a native shortcut reclaims its system hotkey`() throws {
+            let shortcut = try NativeShortcutFixture()
+
+            // GIVEN
+            shortcut.manager.start()
+            shortcut.manager.stop()
+            try #require(shortcut.probeRegistration() == noErr)
+            shortcut.releaseProbe()
+
+            // WHEN
+            shortcut.manager.start()
+
+            // THEN
+            #expect(shortcut.probeRegistration() == eventHotKeyExistsErr)
+        }
+    }
+}
+
+@MainActor
+private final class ShortcutFixture {
+    let source = TestShortcutSource()
+    private(set) var captures = 0
+    private(set) lazy var manager = GlobalShortcutManager(source: self.source) { [weak self] in self?.captures += 1 }
+    func trigger() {
+        self.source.onTrigger?()
     }
 
-    @Test func `releasing manager stops a retained source`() {
-        let source = TestShortcutSource()
-        var manager: GlobalShortcutManager? = GlobalShortcutManager(source: source, onCapture: {})
-        manager?.start()
-        manager = nil
-        #expect(source.stops == 1)
-        #expect(source.onTrigger == nil)
-    }
-
-    @Test func `registers default shortcut and releases it on stop`() throws {
-        // The hosted app also listens to this name. Temporarily disable it to establish
-        // that no other application already owns the combination, then restore it.
-        let savedShortcut = KeyboardShortcuts.getShortcut(for: AppShortcuts.captureText)
-        KeyboardShortcuts.disable(AppShortcuts.captureText)
-        defer {
-            KeyboardShortcuts.setShortcut(savedShortcut, for: AppShortcuts.captureText)
-            KeyboardShortcuts.enable(AppShortcuts.captureText)
-        }
-        let initialShortcut = AppShortcuts.captureText.initialShortcut
-        #expect(initialShortcut == .init(.two, modifiers: [.command, .shift]))
-        KeyboardShortcuts.setShortcut(initialShortcut, for: AppShortcuts.captureText)
-        KeyboardShortcuts.disable(AppShortcuts.captureText)
-
-        var reference: EventHotKeyRef?
-        let identifier = EventHotKeyID(signature: 0x5354_5453, id: 1)
-        func tryRegister() -> OSStatus {
-            RegisterEventHotKey(
-                UInt32(kVK_ANSI_2), UInt32(cmdKey | shiftKey), identifier,
-                GetApplicationEventTarget(), 0, &reference,
-            )
-        }
-        func releaseProbe() {
-            if let reference {
-                UnregisterEventHotKey(reference)
-            }
-            reference = nil
-        }
-        defer { releaseProbe() }
-
-        try #require(tryRegister() == noErr, "Another app owns Command-Shift-2")
-        releaseProbe()
-
-        let manager = GlobalShortcutManager(
-            source: KeyboardShortcutSource(name: AppShortcuts.captureText),
-            onCapture: {},
-        )
-        defer { manager.stop() }
-        manager.start()
-        manager.start()
-        #expect(tryRegister() == eventHotKeyExistsErr, "Starting must claim the system hotkey")
-        manager.stop()
-        try #require(tryRegister() == noErr, "Stopping must release the system hotkey")
-        releaseProbe()
-
-        manager.start()
-        #expect(tryRegister() == eventHotKeyExistsErr, "Restarting must register the hotkey again")
-    }
+    isolated deinit { manager.stop() }
 }
 
 @MainActor
@@ -95,7 +163,6 @@ private final class TestShortcutSource: ShortcutSource {
     var starts = 0
     var stops = 0
     var onTrigger: (() -> Void)?
-
     func startListening(onTrigger: @escaping () -> Void) {
         self.starts += 1
         self.onTrigger = onTrigger
@@ -104,5 +171,42 @@ private final class TestShortcutSource: ShortcutSource {
     func stopListening() {
         self.stops += 1
         self.onTrigger = nil
+    }
+}
+
+@MainActor
+private final class NativeShortcutFixture {
+    private let name = KeyboardShortcuts.Name("nativeShortcut_\(UUID().uuidString)")
+    private var reference: EventHotKeyRef?
+    let manager: GlobalShortcutManager
+
+    init() throws {
+        KeyboardShortcuts.disable(self.name)
+        KeyboardShortcuts.setShortcut(.init(.k, modifiers: [.command, .option, .control, .shift]), for: self.name)
+        self.manager = GlobalShortcutManager(source: KeyboardShortcutSource(name: self.name), onCapture: {})
+        try #require(self.probeRegistration() == noErr, "Another app owns the isolated test combination")
+        self.releaseProbe()
+    }
+
+    func probeRegistration() -> OSStatus {
+        RegisterEventHotKey(UInt32(kVK_ANSI_K), UInt32(cmdKey | optionKey | controlKey | shiftKey),
+                            EventHotKeyID(signature: 0x5354_5453, id: 1), GetApplicationEventTarget(), 0,
+                            &self.reference)
+    }
+
+    func releaseProbe() {
+        if let reference {
+            UnregisterEventHotKey(reference)
+        }
+        self.reference = nil
+    }
+
+    isolated deinit {
+        manager.stop()
+        if let reference {
+            UnregisterEventHotKey(reference)
+        }
+        KeyboardShortcuts.disable(name)
+        KeyboardShortcuts.setShortcut(nil, for: name)
     }
 }

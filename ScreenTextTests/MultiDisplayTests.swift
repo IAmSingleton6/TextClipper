@@ -9,248 +9,195 @@ private let layouts = [
     CGRect(x: 0, y: 800, width: 1200, height: 800),
     CGRect(x: -300, y: -800, width: 1200, height: 800),
 ]
+private let displays = layouts.enumerated().map { SelectionDisplay(
+    id: UInt32($0.offset + 1), frame: ScreenRect(appKitGlobalRect: $0.element),
+    visibleFrame: ScreenRect(appKitGlobalRect: $0.element),
+) }
+private let directions = [
+    (CGPoint(x: 100, y: 50), CGPoint(x: 300, y: 250)),
+    (CGPoint(x: 300, y: 250), CGPoint(x: 100, y: 50)),
+    (CGPoint(x: 300, y: 50), CGPoint(x: 100, y: 250)),
+    (CGPoint(x: 100, y: 250), CGPoint(x: 300, y: 50)),
+]
+private let dragCases = [CaptureMode.box, .freehand].flatMap { mode in
+    directions.map { NativeDragCase(mode: mode, start: $0.0, end: $0.1) }
+}
 
-@MainActor
-struct MultiDisplayTests {
-    @Test func `chooses cursor display across boundaries and gaps`() {
-        let displays = layouts.enumerated().map { SelectionDisplay(
-            id: UInt32($0.offset + 1),
-            frame: ScreenRect(appKitGlobalRect: $0.element),
-            visibleFrame: ScreenRect(appKitGlobalRect: $0.element),
-        ) }
-        for display in displays {
-            let result = SelectionDisplay.containing(
-                ScreenPoint(appKitGlobalPoint: CGPoint(x: display.frame.midX, y: display.frame.midY)),
-                in: displays,
-            )
-            #expect(result?.id == display.id)
+private struct NativeDragCase {
+    let mode: CaptureMode
+    let start: CGPoint
+    let end: CGPoint
+}
+
+extension DesktopTests {
+    @MainActor
+    struct MultiDisplayTests {
+        @Test(arguments: displays)
+        func `a cursor inside a display selects that display`(display: SelectionDisplay) {
+            let point = ScreenPoint(x: display.frame.midX, y: display.frame.midY)
+            #expect(SelectionDisplay.containing(point, in: displays)?.id == display.id)
         }
-        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 0, y: 400)), in: displays)?
-            .id == 1)
-        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: -0.01, y: 400)), in: displays)?
-            .id == 2)
-        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 600, y: 800)), in: displays)?
-            .id == 4)
-        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 1200, y: -400)), in: displays)?
-            .id == 3)
-        #expect(SelectionDisplay
-            .containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 3000, y: 3000)), in: displays) == nil)
-        #expect(SelectionDisplay.containing(
-            ScreenPoint(appKitGlobalPoint: CGPoint(x: CGFloat.nan, y: 0)),
-            in: displays,
-        ) == nil)
-        #expect(SelectionDisplay.containing(.zero, in: []) == nil)
-    }
 
-    @Test(arguments: layouts)
-    func `native drags remain display local in every direction`(frame: CGRect) throws {
-        let display = SelectionDisplay(
-            id: 42,
-            frame: ScreenRect(appKitGlobalRect: frame),
-            visibleFrame: ScreenRect(appKitGlobalRect: frame.insetBy(dx: 0, dy: 20)),
-        )
-        let corners = [
-            (CGPoint(x: 100, y: 50), CGPoint(x: 300, y: 250)),
-            (CGPoint(x: 300, y: 250), CGPoint(x: 100, y: 50)),
-            (CGPoint(x: 300, y: 50), CGPoint(x: 100, y: 250)),
-            (CGPoint(x: 100, y: 250), CGPoint(x: 300, y: 50)),
-        ]
-        let manager = SelectionManager()
-        defer { manager.hide() }
-        for mode in [CaptureMode.box, .freehand] {
-            for (start, end) in corners {
-                var result: Selection?
-                let prepared = manager.prepare(display: display, mode: mode, onEvent: { event in
-                    switch event {
-                    case let .completed(selection):
-                        #expect(manager.window == nil)
-                        result = selection
-                    case .cancelled:
-                        Issue.record("Valid drag was cancelled")
-                    default: break
-                    }
-                })
-                #expect(prepared)
-                let window = try #require(manager.window)
-                #expect(window.frame == frame)
-                window.selectionView.mouseDown(with: self.makeEvent(.leftMouseDown, at: start, window: window))
-                if mode == .freehand {
-                    window.selectionView.mouseDragged(with: self.makeEvent(
-                        .leftMouseDragged,
-                        at: CGPoint(x: end.x, y: start.y),
-                        window: window,
-                    ))
+        @Test(arguments: [
+            (ScreenPoint(x: 0, y: 400), UInt32(1)), (.init(x: -0.01, y: 400), UInt32(2)),
+            (.init(x: 600, y: 800), UInt32(4)), (.init(x: 1200, y: -400), UInt32(3)),
+        ])
+        func `shared display boundaries have a deterministic owner`(cursor: (ScreenPoint, UInt32)) {
+            #expect(SelectionDisplay.containing(cursor.0, in: displays)?.id == cursor.1)
+        }
+
+        @Test(arguments: [ScreenPoint(x: 3000, y: 3000), .init(x: .nan, y: 0)])
+        func `cursors in gaps or at invalid coordinates select no display`(point: ScreenPoint) {
+            #expect(SelectionDisplay.containing(point, in: displays) == nil)
+        }
+
+        @Test func `no display can be selected from an empty layout`() {
+            #expect(SelectionDisplay.containing(.zero, in: []) == nil)
+        }
+
+        @Test(arguments: layouts, dragCases)
+        private func `native drags stay display local across layouts modes and directions`(
+            frame: CGRect,
+            drag: NativeDragCase,
+        ) throws {
+            let selection = SelectionFixture(display: SelectionDisplay(
+                id: 42, frame: ScreenRect(appKitGlobalRect: frame),
+                visibleFrame: ScreenRect(appKitGlobalRect: frame.insetBy(dx: 0, dy: 20)),
+            ), initialMode: drag.mode, onEvent: { selection, event in
+                if case .completed = event {
+                    #expect(selection.manager.window == nil)
                 }
-                window.selectionView.mouseDragged(with: self.makeEvent(.leftMouseDragged, at: end, window: window))
-                window.selectionView.mouseUp(with: self.makeEvent(.leftMouseUp, at: end, window: window))
-                #expect(result?.displayID == 42)
-                #expect(result?.rect == DisplayRect(x: 100, y: 50, width: 200, height: 200))
-                guard let shape = result?.shape else {
-                    Issue.record("Valid drag did not produce a shape")
-                    continue
-                }
-                switch shape {
-                case .rectangle: #expect(mode == .box)
-                case .freehand: #expect(mode == .freehand)
-                }
+            })
+
+            // GIVEN
+            try selection.start()
+            #expect(try selection.window.frame == frame)
+            try selection.press(at: drag.start)
+            if drag.mode == .freehand {
+                try selection.drag(to: .init(x: drag.end.x, y: drag.start.y))
+            }
+            try selection.drag(to: drag.end)
+
+            // WHEN
+            try selection.release(at: drag.end)
+
+            // THEN
+            let result = try #require(selection.completed.first)
+            #expect(result.displayID == 42)
+            #expect(result.rect == DisplayRect(x: 100, y: 50, width: 200, height: 200))
+            #expect(selection.cancellations == 0)
+            switch result.shape {
+            case .rectangle: #expect(drag.mode == .box)
+            case .freehand: #expect(drag.mode == .freehand)
             }
         }
-    }
 
-    func makeEvent(
-        _ type: NSEvent.EventType,
-        at point: CGPoint,
-        window: NSWindow,
-    ) -> NSEvent {
-        guard let event = NSEvent.mouseEvent(
-            with: type,
-            location: point,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: 1,
-        ) else {
-            fatalError("Failed to create mouse event")
+        @Test(arguments: [CGFloat(1), 1.25, 1.5, 2, 3])
+        func `the full display and all four corners convert at the requested scale`(scale: CGFloat) throws {
+            // GIVEN
+            let points = CGSize(width: 1200, height: 800)
+            let pixels = try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: points, pointPixelScale: scale)
+            let crops: [(DisplayRect, CGRect)] = [
+                (.init(x: 0, y: 0, width: 1200, height: 800), CGRect(origin: .zero, size: pixels)),
+                (
+                    .init(x: 0, y: 0, width: 100, height: 100),
+                    .init(x: 0, y: 700 * scale, width: 100 * scale, height: 100 * scale),
+                ),
+                (
+                    .init(x: 1100, y: 700, width: 100, height: 100),
+                    .init(x: 1100 * scale, y: 0, width: 100 * scale, height: 100 * scale),
+                ),
+                (
+                    .init(x: 0, y: 700, width: 100, height: 100),
+                    .init(x: 0, y: 0, width: 100 * scale, height: 100 * scale),
+                ),
+                (
+                    .init(x: 1100, y: 0, width: 100, height: 100),
+                    .init(x: 1100 * scale, y: 700 * scale, width: 100 * scale, height: 100 * scale),
+                ),
+            ]
+            for (selection, expected) in crops {
+                // WHEN
+                let crop = try ImageCoordinates.toPixelRect(from: selection, displaySize: points, imageSize: pixels)
+
+                // THEN
+                #expect(crop == ImagePixelRect(cgImageCropRect: expected))
+            }
         }
 
-        return event
-    }
+        @Test func `native overlays include the menu bar on every connected display`() throws {
+            let screens = NSScreen.screens
+            try #require(!screens.isEmpty)
+            for screen in screens {
+                // GIVEN
+                let number = try #require(screen
+                    .deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+                let selection = SelectionFixture(display: SelectionDisplay(
+                    id: number.uint32Value, frame: ScreenRect(appKitGlobalRect: screen.frame),
+                    visibleFrame: ScreenRect(appKitGlobalRect: screen.visibleFrame),
+                ))
 
-    @Test(arguments: [CGFloat(1), 1.25, 1.5, 2, 3])
-    func `scales corners and entire display without global origin`(scale: CGFloat) throws {
-        let points = CGSize(width: 1200, height: 800)
-        let pixels = try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: points, pointPixelScale: scale)
-        let fullDisplay = try ImageCoordinates.toPixelRect(
-            from: DisplayRect(displayLocalRect: CGRect(origin: .zero, size: points)),
-            displaySize: points,
-            imageSize: pixels,
-        )
-        let bottomLeft = try ImageCoordinates.toPixelRect(
-            from: DisplayRect(x: 0, y: 0, width: 100, height: 100),
-            displaySize: points,
-            imageSize: pixels,
-        )
-        let topRight = try ImageCoordinates.toPixelRect(
-            from: DisplayRect(x: 1100, y: 700, width: 100, height: 100),
-            displaySize: points,
-            imageSize: pixels,
-        )
-        #expect(fullDisplay == ImagePixelRect(cgImageCropRect: CGRect(origin: .zero, size: pixels)))
-        #expect(bottomLeft == ImagePixelRect(cgImageCropRect: CGRect(
-            x: 0,
-            y: 700 * scale,
-            width: 100 * scale,
-            height: 100 * scale,
-        )))
-        #expect(topRight == ImagePixelRect(cgImageCropRect: CGRect(
-            x: 1100 * scale,
-            y: 0,
-            width: 100 * scale,
-            height: 100 * scale,
-        )))
-    }
+                // WHEN
+                try selection.start()
 
-    @Test func `overlays match connected displays including menu bar`() throws {
-        let manager = SelectionManager()
-        defer { manager.hide() }
-        for screen in NSScreen.screens {
-            let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
-            let display = SelectionDisplay(
-                id: number.uint32Value,
-                frame: ScreenRect(appKitGlobalRect: screen.frame),
-                visibleFrame: ScreenRect(appKitGlobalRect: screen.visibleFrame),
-            )
-            let prepared = manager.prepare(display: display, mode: .box, onEvent: { _ in })
-            #expect(prepared)
-            #expect(manager.window?.frame == screen.frame)
-            #expect(manager.window?.selectionView.bounds == CGRect(origin: .zero, size: screen.frame.size))
-            let pixels = try ScreenshotSizing.requestedPixelSize(
-                forDisplayPointSize: screen.frame.size,
-                pointPixelScale: screen.backingScaleFactor,
-            )
-            #expect(pixels.width == ceil(screen.frame.width * screen.backingScaleFactor))
-            #expect(pixels.height == ceil(screen.frame.height * screen.backingScaleFactor))
-            manager.hide()
+                // THEN
+                #expect(try selection.window.frame == screen.frame)
+                #expect(try selection.view.bounds == CGRect(origin: .zero, size: screen.frame.size))
+                let pixels = try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: screen.frame.size,
+                                                                     pointPixelScale: screen.backingScaleFactor)
+                #expect(pixels.width == ceil(screen.frame.width * screen.backingScaleFactor))
+                #expect(pixels.height == ceil(screen.frame.height * screen.backingScaleFactor))
+                selection.hide()
+            }
         }
-    }
 
-    @Test func `invalid and overflowed geometry is rejected`() {
-        let size = CGSize(width: 100, height: 100)
-        #expect(!Selection.isValid(DisplayRect(x: CGFloat.infinity, y: 0, width: 10, height: 10)))
-        #expect(throws: ScreenCaptureError.invalidRegion) {
-            try ImageCoordinates.toPixelRect(from: DisplayRect(
-                x: CGFloat.greatestFiniteMagnitude,
-                y: 0,
-                width: CGFloat.greatestFiniteMagnitude,
-                height: 10,
-            ),
-            displaySize: size,
-            imageSize: size)
-        }
-        #expect(throws: ScreenCaptureError.invalidRegion) {
-            try ImageCoordinates.toPixelRect(
-                from: DisplayRect(x: 0, y: 0, width: 1, height: 1),
-                displaySize: CGSize(width: CGFloat.leastNonzeroMagnitude, height: 1),
-                imageSize: size,
-            )
-        }
-        #expect(throws: ScreenCaptureError.invalidRegion) {
-            try ScreenshotSizing.requestedPixelSize(
-                forDisplayPointSize: CGSize(width: CGFloat.leastNonzeroMagnitude, height: 1),
-                pointPixelScale: CGFloat.leastNonzeroMagnitude,
-            )
-        }
-    }
+        @Test(arguments: [CaptureState.toolbar, .selecting(.box)])
+        func `layout changes cancel visible capture UI`(state: CaptureState) {
+            let capture = CaptureFixture()
+            let center = NotificationCenter()
+            let observer = DisplayConfigurationObserver(center: center) { capture.cancel() }
+            defer { withExtendedLifetime(observer) {} }
 
-    @Test func `layout change cancels overlay and discards pending capture`() async throws {
-        let center = NotificationCenter()
-        let service = SuspendedCaptureService()
-        let manager = TestSelectionManager()
-        let toolbar = TestCaptureToolbar()
-        let clipboard = TestClipboardWriter()
-        let display = SelectionDisplay(
-            id: 1,
-            frame: ScreenRect(appKitGlobalRect: layouts[0]),
-            visibleFrame: ScreenRect(appKitGlobalRect: layouts[0]),
-        )
-        let selection = Selection(
-            displayID: 1,
-            rect: DisplayRect(displayLocalRect: CGRect(x: 10, y: 10, width: 100, height: 60)),
-            shape: .rectangle,
-        )
-        let controller = CaptureController(
-            modeProvider: { .box },
-            saveMode: { _ in },
-            clipboardService: clipboard,
-            ocrService: TestTextRecognizer(),
-            captureService: service,
-            toolbar: toolbar,
-            selectionManager: manager,
-            displayProvider: { display },
-            onEvent: { event in
-                if case .textRecognized = event {
-                    Issue.record("Stale display result was delivered")
-                }
-            },
-        )
-        let observer = DisplayConfigurationObserver(center: center) { controller.cancel() }
-        controller.start()
-        center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        #expect(controller.state == .idle && !toolbar.isVisible && !manager.isVisible)
-        controller.start()
-        manager.onEvent?(.started)
-        manager.onEvent?(.completed(selection))
-        for _ in 0 ..< 100 where await !(service.started) {
-            try await Task.sleep(for: .milliseconds(2))
+            // GIVEN
+            capture.start()
+            if state != .toolbar {
+                capture.beginSelection()
+            }
+
+            // WHEN
+            center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+
+            // THEN
+            #expect(capture.isIdle)
+            #expect(!capture.toolbarIsVisible)
+            #expect(!capture.selectionIsVisible)
+            #expect(capture.results.isEmpty)
         }
-        try #require(await service.started)
-        center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        try await service.finish(.success(TestScreenCaptureService().capture(region: selection)))
-        try await Task.sleep(for: .milliseconds(20))
-        #expect(controller.state == .idle && clipboard.texts.isEmpty)
-        withExtendedLifetime(observer) {}
+
+        @Test func `layout changes discard pending capture without copying`() async throws {
+            let service = SuspendedCaptureService()
+            let clipboard = TestClipboardWriter()
+            let capture = CaptureFixture(captureService: service, clipboardService: clipboard)
+            let center = NotificationCenter()
+            let observer = DisplayConfigurationObserver(center: center) { capture.cancel() }
+            defer { withExtendedLifetime(observer) {} }
+
+            // GIVEN
+            capture.start()
+            capture.beginSelection()
+            capture.completeSelection()
+            try await service.waitUntilStarted()
+
+            // WHEN
+            center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+            try await service.finish(.success(TestImages.colored()))
+            try await capture.waitForProcessingToReturn()
+
+            // THEN
+            #expect(capture.isIdle)
+            #expect(capture.results.isEmpty)
+            #expect(clipboard.texts.isEmpty)
+            #expect(clipboard.attempts.isEmpty)
+        }
     }
 }
