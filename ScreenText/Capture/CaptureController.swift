@@ -13,11 +13,15 @@ enum CaptureState: Equatable {
 final class CaptureController {
     private(set) var state: CaptureState = .idle
     var isActive: Bool { state != .idle }
-    var onCaptureCompleted: ((CGImage) -> Void)?
+    var onCaptureStarted: ((SelectionDisplay) -> Void)?
+    var onNoTextFound: (() -> Void)?
+    var onTextRecognized: ((String) -> Void)?
     var onCaptureFailed: ((Error) -> Void)?
     var selectedMode: CaptureMode { toolbarModel.mode }
     var onActivityChanged: ((Bool) -> Void)?
 
+    private let clipboardService: any ClipboardWriting
+    private let ocrService: any TextRecognizing
     private let captureService: any ScreenCapturing
     private var processingTask: Task<Void, Never>?
     private var sessionID = UUID()
@@ -27,10 +31,14 @@ final class CaptureController {
     private let toolbarModel = CaptureToolbarModel()
     private var escapeTask: Task<Void, Never>?
 
-    init(captureService: any ScreenCapturing = ScreenCaptureService(),
+    init(clipboardService: any ClipboardWriting = ClipboardService(),
+         ocrService: any TextRecognizing = OCRService(),
+         captureService: any ScreenCapturing = ScreenCaptureService(),
          toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
          selectionManager: any SelectionManaging = SelectionManager(),
          displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse) {
+        self.clipboardService = clipboardService
+        self.ocrService = ocrService
         self.captureService = captureService
         self.toolbar = toolbar
         self.selectionManager = selectionManager
@@ -63,6 +71,7 @@ final class CaptureController {
             return
         }
         state = .toolbar
+        onCaptureStarted?(display)
         onActivityChanged?(true)
         listenForEscape()
     }
@@ -103,12 +112,20 @@ final class CaptureController {
         let id = UUID()
         sessionID = id
         let service = captureService
+        let recognizer = ocrService
         processingTask = Task { [weak self] in
             do {
                 let image = try await service.capture(region: selection)
+                guard !Task.isCancelled, self?.sessionID == id else { return }
+                let text = try await recognizer.recognizeText(from: image)
                 guard !Task.isCancelled, let self, self.sessionID == id else { return }
+                guard try self.clipboardService.copy(text) else {
+                    self.cancel()
+                    self.onNoTextFound?()
+                    return
+                }
                 self.cancel()
-                self.onCaptureCompleted?(image)
+                self.onTextRecognized?(text)
             } catch {
                 guard !Task.isCancelled, let self, self.sessionID == id else { return }
                 self.cancel()

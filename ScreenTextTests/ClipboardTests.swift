@@ -1,0 +1,193 @@
+import AppKit
+import Testing
+@testable import ScreenText
+
+@Suite @MainActor
+struct ClipboardServiceTests {
+    @Test func writesExactTextAndNativeTextViewCanPasteIt() throws {
+        let board = NSPasteboard(name: .init("com.screentext.tests.\(UUID())"))
+        defer { board.releaseGlobally() }
+        board.setString("Old clipboard", forType: .string)
+        let text = "Hello world\n\nRevenue: 18%!\n    let total =  42\nhttps://example.com"
+        #expect(try ClipboardService(pasteboard: board).copy(text))
+        #expect(board.string(forType: .string) == text)
+        let editor = NSTextView(frame: .init(x: 0, y: 0, width: 600, height: 400))
+        editor.isRichText = false
+        #expect(editor.readSelection(from: board))
+        #expect(editor.string == text)
+    }
+
+    @Test func emptyResultsPreserveAllExistingClipboardTypes() throws {
+        let board = NSPasteboard(name: .init("com.screentext.tests.\(UUID())"))
+        defer { board.releaseGlobally() }
+        board.setString("Keep this", forType: .string)
+        let customType = NSPasteboard.PasteboardType("com.screentext.test-data")
+        let data = Data([1, 2, 3])
+        board.setData(data, forType: customType)
+        let changeCount = board.changeCount
+        let service = ClipboardService(pasteboard: board)
+        #expect(try !service.copy(""))
+        #expect(try !service.copy(" \t\r\n"))
+        #expect(board.changeCount == changeCount)
+        #expect(board.string(forType: .string) == "Keep this")
+        #expect(board.data(forType: customType) == data)
+    }
+
+    @Test func failedNativeWriteThrowsMeaningfulError() {
+        let board = FailingPasteboard()
+        #expect(throws: ClipboardError.writeFailed) { try ClipboardService(pasteboard: board).copy("Text") }
+        #expect(board.cleared)
+        #expect(board.attemptedType == .string)
+    }
+}
+
+@MainActor
+final class FailingPasteboard: TextPasteboard {
+    var cleared = false
+    var attemptedType: NSPasteboard.PasteboardType?
+    func clearContents() -> Int { cleared = true; return 1 }
+    func setString(_ string: String, forType type: NSPasteboard.PasteboardType) -> Bool {
+        attemptedType = type
+        return false
+    }
+}
+
+@MainActor
+final class TestClipboardWriter: ClipboardWriting {
+    var texts: [String] = []
+    var fails = false
+    func copy(_ text: String) throws -> Bool {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        if fails { throw ClipboardError.writeFailed }
+        texts.append(text)
+        return true
+    }
+}
+
+struct FixedTextRecognizer: TextRecognizing {
+    let text: String
+    func recognizeText(from image: CGImage) async throws -> String { text }
+}
+
+@Suite @MainActor
+struct ClipboardProcessingTests {
+    @Test func nativeSelectionVisionAndPasteProduceExpectedText() async throws {
+        let context = try #require(CGContext(data: nil, width: 900, height: 300, bitsPerComponent: 8,
+                                            bytesPerRow: 3600, space: CGColorSpaceCreateDeviceRGB(),
+                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        NSColor.white.setFill()
+        CGRect(x: 0, y: 0, width: 900, height: 300).fill()
+        for (index, line) in ["Hello world", "Total: 42"].enumerated() {
+            (line as NSString).draw(at: .init(x: 30, y: 220 - index * 35), withAttributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular),
+                .foregroundColor: NSColor.black
+            ])
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let image = try #require(context.makeImage())
+        let board = NSPasteboard(name: .init("com.screentext.tests.\(UUID())"))
+        defer { board.releaseGlobally() }
+        let manager = SelectionManager()
+        defer { manager.hide() }
+        let display = SelectionDisplay(id: 99, frame: .init(x: -600, y: 400, width: 600, height: 400),
+                                       visibleFrame: .init(x: -600, y: 400, width: 600, height: 400))
+        let toolbar = TestCaptureToolbar()
+        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
+                                           ocrService: OCRService(), captureService: ImageCaptureFixture(image: image),
+                                           toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+        var finished = false
+        var copied = false
+        controller.onTextRecognized = { _ in finished = true; copied = true }
+        controller.onCaptureFailed = { _ in Issue.record("Selection-to-paste pipeline failed"); finished = true }
+        controller.start()
+        let window = try #require(manager.window)
+        let event = { (type: NSEvent.EventType, point: CGPoint) in
+            NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
+                               windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+        }
+        window.selectionView.mouseDown(with: event(.leftMouseDown, .init(x: 300, y: 200)))
+        #expect(!toolbar.isVisible)
+        window.selectionView.mouseUp(with: event(.leftMouseUp, .init(x: 100, y: 50)))
+        #expect(manager.window == nil)
+        #expect(controller.state == .processing)
+        for _ in 0..<1500 where !finished { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(copied)
+        #expect(controller.state == .idle)
+        let editor = NSTextView(frame: .init(x: 0, y: 0, width: 600, height: 400))
+        editor.isRichText = false
+        #expect(editor.readSelection(from: board))
+        #expect(editor.string == "Hello world\nTotal: 42")
+    }
+
+    @Test func successCopiesBeforeCompletionAndReturnsIdle() async throws {
+        let clipboard = TestClipboardWriter()
+        let manager = TestSelectionManager()
+        let controller = controller(clipboard: clipboard, text: "Hello\nworld", manager: manager)
+        var completed = false
+        controller.onTextRecognized = {
+            #expect($0 == "Hello\nworld")
+            #expect(clipboard.texts == ["Hello\nworld"])
+            #expect(controller.state == .idle)
+            completed = true
+        }
+        startSelection(controller, manager: manager)
+        for _ in 0..<100 where !completed { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(completed)
+    }
+
+    @Test func emptyResultReturnsIdleWithoutCopyOrSuccessCallback() async throws {
+        let clipboard = TestClipboardWriter()
+        let manager = TestSelectionManager()
+        let controller = controller(clipboard: clipboard, text: " \t\n", manager: manager)
+        controller.onTextRecognized = { _ in Issue.record("Empty OCR must not report copy success") }
+        startSelection(controller, manager: manager)
+        for _ in 0..<100 where controller.isActive { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(controller.state == .idle)
+        #expect(clipboard.texts.isEmpty)
+    }
+
+    @Test func writeFailureReturnsIdleAndReportsErrorWithoutSuccess() async throws {
+        let clipboard = TestClipboardWriter()
+        clipboard.fails = true
+        let manager = TestSelectionManager()
+        let controller = controller(clipboard: clipboard, text: "Hello", manager: manager)
+        var failed = false
+        controller.onTextRecognized = { _ in Issue.record("Failed write must not report success") }
+        controller.onCaptureFailed = {
+            #expect($0 as? ClipboardError == .writeFailed)
+            #expect(controller.state == .idle)
+            failed = true
+        }
+        startSelection(controller, manager: manager)
+        for _ in 0..<100 where !failed { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(failed)
+        #expect(clipboard.texts.isEmpty)
+    }
+
+    private func controller(clipboard: TestClipboardWriter, text: String, manager: TestSelectionManager) -> CaptureController {
+        CaptureController(clipboardService: clipboard, ocrService: FixedTextRecognizer(text: text),
+                          captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(),
+                          selectionManager: manager, displayProvider: {
+            SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
+                             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+        })
+    }
+
+    private func startSelection(_ controller: CaptureController, manager: TestSelectionManager) {
+        controller.start()
+        manager.onStarted?()
+        manager.onCompleted?(Selection(displayID: 1, rect: .init(x: 10, y: 20, width: 100, height: 60), shape: .rectangle))
+    }
+}
+
+struct ImageCaptureFixture: ScreenCapturing {
+    let image: CGImage
+    func capture(region: Selection) async throws -> CGImage {
+        #expect(region.displayID == 99)
+        #expect(region.rect == CGRect(x: 100, y: 50, width: 200, height: 150))
+        #expect(region.shape == .rectangle)
+        return image
+    }
+}
