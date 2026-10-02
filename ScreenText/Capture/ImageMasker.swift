@@ -6,8 +6,9 @@ struct ImageMasker {
     }
 
     // The input is already cropped to the selection's pixel bounds. Preserve
-    // those dimensions and clear the corners before the image reaches OCR.
-    func applyEllipseMask(to image: CGImage) throws -> CGImage {
+    // those dimensions and clear pixels outside the drawn boundary before the image reaches OCR.
+    func applyFreehandMask(to image: CGImage, points: [CGPoint]) throws -> CGImage {
+        guard points.count >= 3, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw MaskError.imageProcessingFailed }
         guard let context = CGContext(
             data: nil, width: image.width, height: image.height,
             bitsPerComponent: 8, bytesPerRow: 0,
@@ -18,8 +19,11 @@ struct ImageMasker {
 
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         context.clear(bounds)
-        context.addEllipse(in: bounds)
-        context.clip()
+        let path = CGMutablePath()
+        path.addLines(between: points)
+        path.closeSubpath()
+        context.addPath(path)
+        context.clip(using: .evenOdd)
         context.draw(image, in: bounds)
         guard let masked = context.makeImage() else { throw MaskError.imageProcessingFailed }
         return masked

@@ -8,7 +8,7 @@ struct LiveScreenCaptureTests {
     // Explicit opt-in keeps ordinary tests independent of desktop permissions.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SCREEN_TEXT_LIVE_CAPTURE"] == "1",
                    "Requires the separate capture fixture and Screen Recording permission"))
-    func capturesFixtureAtNativeScaleWithCorrectOrientationAndEllipseMask() async throws {
+    func capturesFixtureAtNativeScaleWithCorrectOrientationAndFreehandMask() async throws {
         try #require(CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess(),
                      "Enable ScreenText Screen Recording access in System Settings, then rerun this test")
         let screen = try #require(NSScreen.screens.first)
@@ -28,12 +28,15 @@ struct LiveScreenCaptureTests {
         #expect(top.blueComponent > 0.9 && top.redComponent < 0.1)
         #expect(bottom.redComponent > 0.9 && bottom.blueComponent < 0.1)
 
-        let ellipse = try await service.capture(region: Selection(displayID: number.uint32Value, rect: rect, shape: .ellipse))
-        let masked = NSBitmapImageRep(cgImage: ellipse)
-        #expect(ellipse.width == image.width && ellipse.height == image.height)
+        let freehand = try await service.capture(region: Selection(displayID: number.uint32Value, rect: rect, shape: .freehand(points: [
+            .init(x: rect.midX, y: rect.minY), .init(x: rect.maxX, y: rect.midY),
+            .init(x: rect.midX, y: rect.maxY), .init(x: rect.minX, y: rect.midY)
+        ])))
+        let masked = NSBitmapImageRep(cgImage: freehand)
+        #expect(freehand.width == image.width && freehand.height == image.height)
         #expect(try #require(masked.colorAt(x: 0, y: 0)).alphaComponent == 0)
-        #expect(try #require(masked.colorAt(x: ellipse.width / 2, y: ellipse.height / 2)).alphaComponent > 0.99)
+        #expect(try #require(masked.colorAt(x: freehand.width / 2, y: freehand.height / 2)).alphaComponent > 0.99)
         #expect(NSPasteboard.general.changeCount == clipboardChanges)
-        print("Live capture verified: \(image.width) × \(image.height) pixels, \(screen.backingScaleFactor)× display scale; orientation and ellipse mask correct.")
+        print("Live capture verified: \(image.width) × \(image.height) pixels, \(screen.backingScaleFactor)× display scale; orientation and freehand mask correct.")
     }
 }

@@ -36,17 +36,17 @@ struct CaptureControllerTests {
     @Test func modeButtonsUpdateTheToolbarAndNewSessionsDefaultToBox() {
         let toolbar = TestCaptureToolbar()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
-        controller.selectMode(.circle)
+        controller.selectMode(.freehand)
         #expect(controller.selectedMode == .box)
         controller.start()
         #expect(toolbar.isVisible)
         #expect(toolbar.model?.mode == .box)
-        toolbar.onModeSelected?(.circle)
-        #expect(controller.selectedMode == .circle)
-        #expect(toolbar.model?.mode == .circle)
+        toolbar.onModeSelected?(.freehand)
+        #expect(controller.selectedMode == .freehand)
+        #expect(toolbar.model?.mode == .freehand)
         toolbar.onModeSelected?(.box)
         #expect(controller.selectedMode == .box)
-        toolbar.onModeSelected?(.circle)
+        toolbar.onModeSelected?(.freehand)
         toolbar.onCancel?()
         #expect(!controller.isActive)
         #expect(!toolbar.isVisible)
@@ -85,7 +85,7 @@ struct CaptureControllerTests {
         selections.onStarted?()
         #expect(controller.state == .selecting(.box))
         #expect(!toolbar.isVisible)
-        controller.selectMode(.circle)
+        controller.selectMode(.freehand)
         #expect(controller.selectedMode == .box)
         selections.onCompleted?(selection)
         #expect(controller.state == .processing)
@@ -94,11 +94,11 @@ struct CaptureControllerTests {
         #expect(!controller.isActive)
     }
 
-    @Test func circleDragLocksModeAndCompletesAfterTeardown() async throws {
+    @Test func freehandDragLocksModeAndCompletesAfterTeardown() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
         let controller = CaptureController(clipboardService: TestClipboardWriter(), ocrService: TestTextRecognizer(), captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
-        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse)
+        let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .freehand(points: [.init(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90)]))
         var completed: String?
         controller.onTextRecognized = {
             #expect(controller.state == .idle)
@@ -107,12 +107,12 @@ struct CaptureControllerTests {
             completed = $0
         }
         controller.start()
-        controller.selectMode(.circle)
+        controller.selectMode(.freehand)
         selections.onStarted?()
-        #expect(controller.state == .selecting(.circle))
+        #expect(controller.state == .selecting(.freehand))
         #expect(!toolbar.isVisible)
         controller.selectMode(.box)
-        #expect(controller.selectedMode == .circle)
+        #expect(controller.selectedMode == .freehand)
         selections.onCompleted?(selection)
         #expect(controller.state == .processing)
         for _ in 0..<100 where completed == nil { try await Task.sleep(for: .milliseconds(2)) }

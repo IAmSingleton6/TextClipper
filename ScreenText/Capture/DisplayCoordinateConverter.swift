@@ -28,6 +28,25 @@ struct DisplayCoordinateConverter {
         return result
     }
 
+    // Convert display-local AppKit points into the cropped CGContext's bottom-left
+    // coordinates. The outward-rounded CGImage crop uses a top-left origin.
+    func maskPoints(for points: [CGPoint], displaySize: CGSize, imageSize: CGSize, cropRect: CGRect) throws -> [CGPoint] {
+        let values = [displaySize.width, displaySize.height, imageSize.width, imageSize.height,
+                      cropRect.minX, cropRect.minY, cropRect.maxX, cropRect.maxY]
+        guard values.allSatisfy({ $0.isFinite }), displaySize.width > 0, displaySize.height > 0,
+              imageSize.width > 0, imageSize.height > 0, !cropRect.isEmpty else { throw ScreenCaptureError.invalidRegion }
+        let scaleX = imageSize.width / displaySize.width
+        let scaleY = imageSize.height / displaySize.height
+        return try points.map { point in
+            let converted = CGPoint(x: point.x * scaleX - cropRect.minX,
+                                    y: point.y * scaleY - (imageSize.height - cropRect.maxY))
+            guard point.x.isFinite, point.y.isFinite, converted.x.isFinite, converted.y.isFinite else {
+                throw ScreenCaptureError.invalidRegion
+            }
+            return converted
+        }
+    }
+
     func imageSize(displaySize: CGSize, pixelScale: CGFloat) throws -> CGSize {
         guard displaySize.width.isFinite, displaySize.height.isFinite, pixelScale.isFinite,
               displaySize.width > 0, displaySize.height > 0, pixelScale > 0,

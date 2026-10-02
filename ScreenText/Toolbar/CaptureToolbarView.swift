@@ -17,7 +17,7 @@ struct CaptureToolbarView: View {
     var body: some View {
         HStack(spacing: 6) {
             modeButton(.box, title: "Box", symbol: "rectangle.dashed")
-            modeButton(.circle, title: "Circle", symbol: "circle.dashed")
+            modeButton(.freehand, title: "Draw", symbol: "lasso")
 
             Divider()
                 .frame(height: 24)
@@ -72,6 +72,6 @@ struct CaptureToolbarView: View {
         .accessibilityLabel("\(title) selection")
         .accessibilityValue(model.mode == mode ? "Selected" : "Not selected")
         .accessibilityAddTraits(model.mode == mode ? .isSelected : [])
-        .help("\(title) selection")
+        .help(mode == .freehand ? "Click and hold to draw around text" : "Box selection")
     }
 }

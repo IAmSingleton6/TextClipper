@@ -6,13 +6,15 @@ final class SelectionView: NSView {
         didSet { window?.invalidateCursorRects(for: self) }
     }
     var onStarted: (() -> Void)?
-    var onFinished: ((CGRect?) -> Void)?
+    var onFinished: ((SelectionGeometry?) -> Void)?
     var onCancelled: (() -> Void)?
+    private var drawnPoints: [CGPoint] = []
     private var startPoint: CGPoint?
     private var currentPoint: CGPoint?
 
     var selectionRect: CGRect? {
         guard let startPoint, let currentPoint else { return nil }
+        if mode == .freehand { return SelectionGeometry.bounds(for: drawnPoints) }
         return Selection.normalizedRect(from: startPoint, to: currentPoint)
     }
 
@@ -29,6 +31,7 @@ final class SelectionView: NSView {
         window?.makeFirstResponder(self)
         startPoint = clampedPoint(for: event)
         currentPoint = startPoint
+        drawnPoints = startPoint.map { [$0] } ?? []
         needsDisplay = true
         onStarted?()
     }
@@ -36,15 +39,22 @@ final class SelectionView: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard startPoint != nil else { return }
         currentPoint = clampedPoint(for: event)
+        appendDrawnPoint()
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
         guard startPoint != nil else { return }
         currentPoint = clampedPoint(for: event)
-        let rect = selectionRect
+        appendDrawnPoint()
+        let geometry: SelectionGeometry?
+        if mode == .freehand {
+            geometry = SelectionGeometry.freehand(points: drawnPoints)
+        } else {
+            geometry = selectionRect.flatMap { Selection.isValid($0) ? SelectionGeometry(rect: $0, shape: .rectangle) : nil }
+        }
         reset()
-        onFinished?(rect.flatMap { Selection.isValid($0) ? $0 : nil })
+        onFinished?(geometry)
     }
 
     override func cancelOperation(_ sender: Any?) {
@@ -60,9 +70,15 @@ final class SelectionView: NSView {
     }
 
     func reset() {
+        drawnPoints.removeAll()
         startPoint = nil
         currentPoint = nil
         needsDisplay = true
+    }
+
+    private func appendDrawnPoint() {
+        guard mode == .freehand, let point = currentPoint, drawnPoints.last != point else { return }
+        drawnPoints.append(point)
     }
 
     private func clampedPoint(for event: NSEvent) -> CGPoint {
@@ -72,7 +88,14 @@ final class SelectionView: NSView {
     }
 
     private func selectionPath(in rect: CGRect) -> NSBezierPath {
-        mode == .box ? NSBezierPath(rect: rect) : NSBezierPath(ovalIn: rect)
+        if mode == .box { return NSBezierPath(rect: rect) }
+        let path = NSBezierPath()
+        if let first = drawnPoints.first {
+            path.move(to: first)
+            for point in drawnPoints.dropFirst() { path.line(to: point) }
+            path.close()
+        }
+        return path
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -92,7 +115,8 @@ final class SelectionView: NSView {
         NSColor.black.withAlphaComponent(0.28).setFill()
         dimmedArea.fill()
 
-        if selectionRect.width > 1 && selectionRect.height > 1 {
+        let hasBorder = mode == .freehand ? drawnPoints.count > 1 : selectionRect.width > 1 && selectionRect.height > 1
+        if hasBorder {
             let border = selectionPath(in: selectionRect.insetBy(dx: 0.5, dy: 0.5))
             // A dark under-stroke keeps the bright edge visible on light content.
             border.lineWidth = 3

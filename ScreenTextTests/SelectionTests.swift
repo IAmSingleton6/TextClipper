@@ -29,7 +29,7 @@ struct SelectionTests {
         var started = false
         var completed: CGRect?
         view.onStarted = { started = true }
-        view.onFinished = { completed = $0 }
+        view.onFinished = { completed = $0?.rect }
         view.mouseDown(with: try event(.leftMouseDown, at: .init(x: 500, y: 350), window: window))
         #expect(started)
         view.mouseDragged(with: try event(.leftMouseDragged, at: .init(x: -100, y: -50), window: window))
@@ -64,7 +64,7 @@ struct SelectionTests {
         let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400), visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
         var cancelled = 0
         let prepare = {
-            manager.prepare(display: display, mode: .circle, onStarted: {}, onCompleted: { _ in Issue.record("Unexpected result") }, onCancelled: { cancelled += 1 })
+            manager.prepare(display: display, mode: .freehand, onStarted: {}, onCompleted: { _ in Issue.record("Unexpected result") }, onCancelled: { cancelled += 1 })
         }
         #expect(prepare())
         var window = try #require(manager.window)
@@ -80,28 +80,26 @@ struct SelectionTests {
         #expect(manager.window == nil)
     }
 
-    @Test func ellipseSelectionNormalizesEveryDirectionAndUsesCurrentMode() throws {
+    @Test func drawnSelectionPreservesConcavePathAndAutomaticallyClosesIt() throws {
         let manager = SelectionManager()
         let display = SelectionDisplay(id: 42, frame: .init(x: -600, y: 400, width: 600, height: 400), visibleFrame: .init(x: -600, y: 400, width: 600, height: 400))
-        let pairs: [(CGPoint, CGPoint)] = [
-            (.init(x: 20, y: 30), .init(x: 120, y: 90)),
-            (.init(x: 120, y: 90), .init(x: 20, y: 30)),
-            (.init(x: 120, y: 30), .init(x: 20, y: 90)),
-            (.init(x: 20, y: 90), .init(x: 120, y: 30))
-        ]
-        for (start, end) in pairs {
+        let path = [CGPoint(x: 20, y: 30), CGPoint(x: 120, y: 30), CGPoint(x: 120, y: 90),
+                    CGPoint(x: 70, y: 60), CGPoint(x: 20, y: 90)]
+        for points in [path, Array(path.reversed())] {
             var completed: Selection?
             let prepared = manager.prepare(display: display, mode: .box, onStarted: {}, onCompleted: {
                 #expect(manager.window == nil)
                 completed = $0
             }, onCancelled: { Issue.record("Unexpected cancellation") })
             #expect(prepared)
-            manager.setMode(.circle)
+            manager.setMode(.freehand)
             let window = try #require(manager.window)
-            window.selectionView.mouseDown(with: try event(.leftMouseDown, at: start, window: window))
-            window.selectionView.mouseDragged(with: try event(.leftMouseDragged, at: end, window: window))
-            window.selectionView.mouseUp(with: try event(.leftMouseUp, at: end, window: window))
-            #expect(completed == Selection(displayID: 42, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse))
+            window.selectionView.mouseDown(with: try event(.leftMouseDown, at: points[0], window: window))
+            for point in points.dropFirst() {
+                window.selectionView.mouseDragged(with: try event(.leftMouseDragged, at: point, window: window))
+            }
+            window.selectionView.mouseUp(with: try event(.leftMouseUp, at: points.last!, window: window))
+            #expect(completed == Selection(displayID: 42, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .freehand(points: points)))
             #expect(!window.isVisible)
         }
     }
