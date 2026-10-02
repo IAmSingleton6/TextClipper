@@ -1,10 +1,11 @@
+import CoreGraphics
 import Testing
 @testable import ScreenText
 
 @Suite @MainActor
 struct CaptureControllerTests {
     @Test func repeatedInvocationCancelsAndCanStartAgain() {
-        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -19,7 +20,7 @@ struct CaptureControllerTests {
     }
 
     @Test func startAndCancelAreIdempotent() {
-        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
 
@@ -34,7 +35,7 @@ struct CaptureControllerTests {
 
     @Test func modeButtonsUpdateTheToolbarAndNewSessionsDefaultToBox() {
         let toolbar = TestCaptureToolbar()
-        let controller = CaptureController(toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         controller.selectMode(.circle)
         #expect(controller.selectedMode == .box)
         controller.start()
@@ -60,20 +61,20 @@ struct CaptureControllerTests {
     @Test func missingDisplayLeavesTheControllerIdle() {
         let toolbar = TestCaptureToolbar()
         toolbar.canShow = false
-        let controller = CaptureController(toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: TestSelectionManager(), displayProvider: { testDisplay })
         var changes: [Bool] = []
         controller.onActivityChanged = { changes.append($0) }
         controller.start()
         #expect(!controller.isActive)
         #expect(changes.isEmpty)
     }
-    @Test func selectionHidesToolbarAndDeliversResultAfterTeardown() {
+    @Test func selectionHidesToolbarAndDeliversResultAfterTeardown() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 25, y: 40, width: 100, height: 60), shape: .rectangle)
-        var completed: Selection?
-        controller.onSelectionCompleted = {
+        var completed: CGImage?
+        controller.onCaptureCompleted = {
             #expect(!toolbar.isVisible)
             #expect(!selections.isVisible)
             #expect(controller.state == .idle)
@@ -87,17 +88,19 @@ struct CaptureControllerTests {
         controller.selectMode(.circle)
         #expect(controller.selectedMode == .box)
         selections.onCompleted?(selection)
-        #expect(completed == selection)
+        #expect(controller.state == .processing)
+        for _ in 0..<100 where completed == nil { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(completed?.width == 100)
         #expect(!controller.isActive)
     }
 
-    @Test func circleDragLocksModeAndCompletesAfterTeardown() {
+    @Test func circleDragLocksModeAndCompletesAfterTeardown() async throws {
         let toolbar = TestCaptureToolbar()
         let selections = TestSelectionManager()
-        let controller = CaptureController(toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: toolbar, selectionManager: selections, displayProvider: { testDisplay })
         let selection = Selection(displayID: testDisplay.id, rect: .init(x: 20, y: 30, width: 100, height: 60), shape: .ellipse)
-        var completed: Selection?
-        controller.onSelectionCompleted = {
+        var completed: CGImage?
+        controller.onCaptureCompleted = {
             #expect(controller.state == .idle)
             #expect(!toolbar.isVisible)
             #expect(!selections.isVisible)
@@ -111,14 +114,16 @@ struct CaptureControllerTests {
         controller.selectMode(.box)
         #expect(controller.selectedMode == .circle)
         selections.onCompleted?(selection)
-        #expect(completed == selection)
+        #expect(controller.state == .processing)
+        for _ in 0..<100 where completed == nil { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(completed?.width == 100)
     }
 
     @Test func cancellingDragDoesNotDeliverSelection() {
         let selections = TestSelectionManager()
-        let controller = CaptureController(toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
+        let controller = CaptureController(captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(), selectionManager: selections, displayProvider: { testDisplay })
         var completed = false
-        controller.onSelectionCompleted = { _ in completed = true }
+        controller.onCaptureCompleted = { _ in completed = true }
         controller.start()
         selections.onStarted?()
         selections.onCancelled?()
