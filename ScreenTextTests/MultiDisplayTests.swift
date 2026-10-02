@@ -1,18 +1,18 @@
 import AppKit
-import Testing
 @testable import ScreenText
+import Testing
 
 private let layouts = [
     CGRect(x: 0, y: 0, width: 1200, height: 800),
     CGRect(x: -1200, y: 0, width: 1200, height: 800),
     CGRect(x: 1200, y: -800, width: 1200, height: 800),
     CGRect(x: 0, y: 800, width: 1200, height: 800),
-    CGRect(x: -300, y: -800, width: 1200, height: 800)
+    CGRect(x: -300, y: -800, width: 1200, height: 800),
 ]
 
-@Suite @MainActor
+@MainActor
 struct MultiDisplayTests {
-    @Test func choosesCursorDisplayAcrossBoundariesAndGaps() {
+    @Test func `chooses cursor display across boundaries and gaps`() {
         let displays = layouts.enumerated().map { SelectionDisplay(id: UInt32($0.offset + 1), frame: $0.element, visibleFrame: $0.element) }
         for display in displays {
             let result = SelectionDisplay.containing(CGPoint(x: display.frame.midX, y: display.frame.midY), in: displays)
@@ -28,23 +28,29 @@ struct MultiDisplayTests {
     }
 
     @Test(arguments: layouts)
-    func nativeDragsRemainDisplayLocalInEveryDirection(frame: CGRect) throws {
+    func `native drags remain display local in every direction`(frame: CGRect) throws {
         let display = SelectionDisplay(id: 42, frame: frame, visibleFrame: frame.insetBy(dx: 0, dy: 20))
         let corners = [
             (CGPoint(x: 100, y: 50), CGPoint(x: 300, y: 250)),
             (CGPoint(x: 300, y: 250), CGPoint(x: 100, y: 50)),
             (CGPoint(x: 300, y: 50), CGPoint(x: 100, y: 250)),
-            (CGPoint(x: 100, y: 250), CGPoint(x: 300, y: 50))
+            (CGPoint(x: 100, y: 250), CGPoint(x: 300, y: 50)),
         ]
         let manager = SelectionManager()
         defer { manager.hide() }
         for mode in [CaptureMode.box, .freehand] {
             for (start, end) in corners {
                 var result: Selection?
-                let prepared = manager.prepare(display: display, mode: mode, onStarted: {}, onCompleted: {
-                    #expect(manager.window == nil)
-                    result = $0
-                }, onCancelled: { Issue.record("Valid drag was cancelled") })
+                let prepared = manager.prepare(display: display, mode: mode, onEvent: { event in
+                    switch event {
+                    case let .completed(selection):
+                        #expect(manager.window == nil)
+                        result = selection
+                    case .cancelled:
+                        Issue.record("Valid drag was cancelled")
+                    default: break
+                    }
+                })
                 #expect(prepared)
                 let window = try #require(manager.window)
                 #expect(window.frame == frame)
@@ -66,25 +72,25 @@ struct MultiDisplayTests {
     }
 
     @Test(arguments: [CGFloat(1), 1.25, 1.5, 2, 3])
-    func scalesCornersAndEntireDisplayWithoutGlobalOrigin(scale: CGFloat) throws {
+    func `scales corners and entire display without global origin`(scale: CGFloat) throws {
         let converter = DisplayCoordinateConverter()
         let points = CGSize(width: 1200, height: 800)
         let pixels = try converter.imageSize(displaySize: points, pixelScale: scale)
         #expect(try converter.pixelRect(for: CGRect(origin: .zero, size: points), displaySize: points, imageSize: pixels)
-                == CGRect(origin: .zero, size: pixels))
+            == CGRect(origin: .zero, size: pixels))
         #expect(try converter.pixelRect(for: CGRect(x: 0, y: 0, width: 100, height: 100), displaySize: points, imageSize: pixels)
-                == CGRect(x: 0, y: 700 * scale, width: 100 * scale, height: 100 * scale))
+            == CGRect(x: 0, y: 700 * scale, width: 100 * scale, height: 100 * scale))
         #expect(try converter.pixelRect(for: CGRect(x: 1100, y: 700, width: 100, height: 100), displaySize: points, imageSize: pixels)
-                == CGRect(x: 1100 * scale, y: 0, width: 100 * scale, height: 100 * scale))
+            == CGRect(x: 1100 * scale, y: 0, width: 100 * scale, height: 100 * scale))
     }
 
-    @Test func overlaysMatchConnectedDisplaysIncludingMenuBar() throws {
+    @Test func `overlays match connected displays including menu bar`() throws {
         let manager = SelectionManager()
         defer { manager.hide() }
         for screen in NSScreen.screens {
             let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
             let display = SelectionDisplay(id: number.uint32Value, frame: screen.frame, visibleFrame: screen.visibleFrame)
-            let prepared = manager.prepare(display: display, mode: .box, onStarted: {}, onCompleted: { _ in }, onCancelled: {})
+            let prepared = manager.prepare(display: display, mode: .box, onEvent: { _ in })
             #expect(prepared)
             #expect(manager.window?.frame == screen.frame)
             #expect(manager.window?.selectionView.bounds == CGRect(origin: .zero, size: screen.frame.size))
@@ -95,7 +101,7 @@ struct MultiDisplayTests {
         }
     }
 
-    @Test func invalidAndOverflowedGeometryIsRejected() {
+    @Test func `invalid and overflowed geometry is rejected`() {
         let converter = DisplayCoordinateConverter()
         let size = CGSize(width: 100, height: 100)
         #expect(!Selection.isValid(CGRect(x: CGFloat.infinity, y: 0, width: 10, height: 10)))
@@ -110,7 +116,7 @@ struct MultiDisplayTests {
         }
     }
 
-    @Test func layoutChangeCancelsOverlayAndDiscardsPendingCapture() async throws {
+    @Test func `layout change cancels overlay and discards pending capture`() async throws {
         let center = NotificationCenter()
         let service = SuspendedCaptureService()
         let manager = TestSelectionManager()
@@ -118,20 +124,28 @@ struct MultiDisplayTests {
         let clipboard = TestClipboardWriter()
         let display = SelectionDisplay(id: 1, frame: layouts[0], visibleFrame: layouts[0])
         let controller = CaptureController(clipboardService: clipboard, ocrService: TestTextRecognizer(),
-            captureService: service, toolbar: toolbar, selectionManager: manager, displayProvider: { display })
+                                           captureService: service, toolbar: toolbar, selectionManager: manager, displayProvider: { display })
         let observer = DisplayConfigurationObserver(center: center) { controller.cancel() }
         let selection = Selection(displayID: 1, rect: CGRect(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
-        controller.onTextRecognized = { _ in Issue.record("Stale display result was delivered") }
+        controller.onEvent = { event in
+            switch event {
+            case .textRecognized:
+                Issue.record("Stale display result was delivered")
+            default: break
+            }
+        }
         controller.start()
         center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         #expect(controller.state == .idle && !toolbar.isVisible && !manager.isVisible)
         controller.start()
-        manager.onStarted?()
-        manager.onCompleted?(selection)
-        for _ in 0..<100 where !(await service.started) { try await Task.sleep(for: .milliseconds(2)) }
+        manager.onEvent?(.started)
+        manager.onEvent?(.completed(selection))
+        for _ in 0 ..< 100 where await !(service.started) {
+            try await Task.sleep(for: .milliseconds(2))
+        }
         try #require(await service.started)
         center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        await service.finish(.success(try await TestScreenCaptureService().capture(region: selection)))
+        try await service.finish(.success(TestScreenCaptureService().capture(region: selection)))
         try await Task.sleep(for: .milliseconds(20))
         #expect(controller.state == .idle && clipboard.texts.isEmpty)
         withExtendedLifetime(observer) {}

@@ -25,7 +25,8 @@ struct ScreenCaptureService: ScreenCapturing {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         } catch {
             if (error as NSError).domain == SCStreamErrorDomain,
-               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue {
+               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue
+            {
                 throw ScreenCaptureError.permissionDenied
             }
             throw ScreenCaptureError.captureFailed
@@ -33,10 +34,20 @@ struct ScreenCaptureService: ScreenCapturing {
         guard let display = content.displays.first(where: { $0.displayID == region.displayID }) else {
             throw ScreenCaptureError.displayNotFound
         }
-        // Exclusion also guards against a compositor frame retaining the just-hidden UI.
+        // Exclude capture/feedback panels, including any retained compositor frame,
+        // but keep ordinary app windows such as Settings in the screenshot.
+        let capturableWindowIDs = await MainActor.run {
+            Self.capturableWindowIDs(in: NSApp.windows)
+        }
         let ownApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
-        if #available(macOS 14.2, *) { filter.includeMenuBar = true }
+        let ownWindows = content.windows.filter {
+            $0.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier
+                && capturableWindowIDs.contains($0.windowID)
+        }
+        let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: ownWindows)
+        if #available(macOS 14.2, *) {
+            filter.includeMenuBar = true
+        }
         let converter = DisplayCoordinateConverter()
         let pointSize = filter.contentRect.size
         let pixelSize = try converter.imageSize(displaySize: pointSize, pixelScale: CGFloat(filter.pointPixelScale))
@@ -50,16 +61,30 @@ struct ScreenCaptureService: ScreenCapturing {
             image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         } catch {
             if (error as NSError).domain == SCStreamErrorDomain,
-               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue {
+               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue
+            {
                 throw ScreenCaptureError.permissionDenied
             }
             throw ScreenCaptureError.captureFailed
         }
         try Task.checkCancellation()
-        return try croppedImage(from: image, region: region, displaySize: pointSize)
+        return try self.croppedImage(from: image, region: region, displaySize: pointSize)
     }
 
-    // Shared with offline image tests so the exact capture crop/mask path is verified.
+    @MainActor
+    static func capturableWindowIDs(in windows: [NSWindow]) -> Set<CGWindowID> {
+        Set(windows.compactMap { window -> CGWindowID? in
+            guard !(window is NSPanel) else { return nil }
+            return self.capturableWindowID(for: window.windowNumber)
+        })
+    }
+
+    static func capturableWindowID(for number: Int) -> CGWindowID? {
+        guard number > 0 else { return nil }
+        return CGWindowID(exactly: number)
+    }
+
+    /// Shared with offline image tests so the exact capture crop/mask path is verified.
     func croppedImage(from image: CGImage, region: Selection, displaySize: CGSize) throws -> CGImage {
         let converter = DisplayCoordinateConverter()
         let imageSize = CGSize(width: image.width, height: image.height)
@@ -67,7 +92,7 @@ struct ScreenCaptureService: ScreenCapturing {
         guard let cropped = image.cropping(to: cropRect) else { throw ScreenCaptureError.captureFailed }
         switch region.shape {
         case .rectangle: return cropped
-        case .freehand(let points):
+        case let .freehand(points):
             let localPoints = try converter.maskPoints(for: points, displaySize: displaySize, imageSize: imageSize, cropRect: cropRect)
             return try ImageMasker().applyFreehandMask(to: cropped, points: localPoints)
         }

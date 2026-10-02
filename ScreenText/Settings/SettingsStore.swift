@@ -5,16 +5,26 @@ import Observation
 final class SettingsStore {
     private let defaults: UserDefaults
     var showCapturedText: Bool {
-        didSet { defaults.set(showCapturedText, forKey: "showCapturedText") }
+        didSet { self.defaults.set(self.showCapturedText, forKey: "showCapturedText") }
     }
-    var defaultMode: CaptureMode {
-        didSet { defaults.set(defaultMode == .freehand ? "freehand" : "box", forKey: "defaultSelectionMode") }
+
+    /// Keep the existing storage key so upgrades retain the last used mode.
+    var lastSelectionMode: CaptureMode {
+        didSet { self.defaults.set(self.lastSelectionMode == .freehand ? "freehand" : "box", forKey: "defaultSelectionMode") }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        showCapturedText = defaults.bool(forKey: "showCapturedText")
+        self.showCapturedText = defaults.object(forKey: "showCapturedText") == nil
+            ? true : defaults.bool(forKey: "showCapturedText")
         let savedMode = defaults.string(forKey: "defaultSelectionMode")
-        defaultMode = ["freehand", "circle"].contains(savedMode ?? "") ? .freehand : .box
+        self.lastSelectionMode = ["freehand", "circle"].contains(savedMode ?? "") ? .freehand : .box
+    }
+
+    /// Show setup once per user, including when upgrading from a version without setup.
+    func consumeFirstLaunch() -> Bool {
+        guard !self.defaults.bool(forKey: "hasShownInitialSettings") else { return false }
+        self.defaults.set(true, forKey: "hasShownInitialSettings")
+        return true
     }
 }

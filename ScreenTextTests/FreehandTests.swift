@@ -1,10 +1,10 @@
 import AppKit
-import Testing
 @testable import ScreenText
+import Testing
 
-@Suite @MainActor
+@MainActor
 struct FreehandTests {
-    @Test func rejectsClicksLinesTinyPathsAndInvalidPoints() {
+    @Test func `rejects clicks lines tiny paths and invalid points`() {
         #expect(SelectionGeometry.freehand(points: []) == nil)
         #expect(SelectionGeometry.freehand(points: [.zero]) == nil)
         #expect(SelectionGeometry.freehand(points: [.zero, .init(x: 50, y: 50), .init(x: 100, y: 100)]) == nil)
@@ -14,42 +14,47 @@ struct FreehandTests {
         #expect(SelectionGeometry.freehand(points: crossed) != nil)
     }
 
-    @Test func horizontalFirstStrokeIsVisibleAndLineOnlyReleaseCancels() throws {
+    @Test func `horizontal first stroke is visible and line only release cancels`() throws {
         let view = SelectionView(frame: .init(x: 0, y: 0, width: 100, height: 100))
         view.mode = .freehand
         func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
             try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                           windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                                            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         }
-        view.mouseDown(with: try event(.leftMouseDown, .init(x: 10, y: 10)))
-        view.mouseDragged(with: try event(.leftMouseDragged, .init(x: 90, y: 10)))
+        try view.mouseDown(with: event(.leftMouseDown, .init(x: 10, y: 10)))
+        try view.mouseDragged(with: event(.leftMouseDragged, .init(x: 90, y: 10)))
         let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)
         let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh * 90 / 100))
         #expect(color.alphaComponent > 0.8)
         var finished = false
-        view.onFinished = { #expect($0 == nil); finished = true }
-        view.mouseUp(with: try event(.leftMouseUp, .init(x: 90, y: 10)))
+        view.onEvent = { event in
+            switch event {
+            case .cancelled: finished = true
+            default: Issue.record("A line must cancel selection")
+            }
+        }
+        try view.mouseUp(with: event(.leftMouseUp, .init(x: 90, y: 10)))
         #expect(finished && view.selectionRect == nil)
     }
 
-    @Test func legacyCircleDefaultMigratesToDraw() throws {
+    @Test func `legacy circle default migrates to draw`() throws {
         let name = "com.screentext.tests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set("circle", forKey: "defaultSelectionMode")
         let settings = SettingsStore(defaults: defaults)
-        #expect(settings.defaultMode == .freehand)
-        settings.defaultMode = .freehand
+        #expect(settings.lastSelectionMode == .freehand)
+        settings.lastSelectionMode = .freehand
         #expect(defaults.string(forKey: "defaultSelectionMode") == "freehand")
     }
 
     @Test(arguments: [CGFloat(1), 1.25, 2])
-    func exactCaptureMaskKeepsConcavityOrientationAndFractionalEdges(scale: CGFloat) throws {
+    func `exact capture mask keeps concavity orientation and fractional edges`(scale: CGFloat) throws {
         let width = Int(100 * scale), height = Int(80 * scale)
         let context = try #require(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
-                                            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
-                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                                             bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height / 2))
         context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
@@ -77,15 +82,15 @@ struct FreehandTests {
         }
     }
 
-    @Test func selfCrossingMaskUsesSameEvenOddRuleAsOverlay() throws {
+    @Test func `self crossing mask uses same even odd rule as overlay`() throws {
         let context = try #require(CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8,
-                                            bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(),
-                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                                             bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
         let input = try #require(context.makeImage())
         let output = try ImageMasker().applyFreehandMask(to: input, points: [
-            .init(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)
+            .init(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10),
         ])
         let bitmap = NSBitmapImageRep(cgImage: output)
         #expect(try #require(bitmap.colorAt(x: 50, y: 20)).alphaComponent == 1)
@@ -96,10 +101,12 @@ struct FreehandTests {
         let points = [CGPoint(x: 10, y: 10), .init(x: 90, y: 90), .init(x: 10, y: 90), .init(x: 90, y: 10)]
         func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
             try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                           windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                                            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         }
-        view.mouseDown(with: try event(.leftMouseDown, points[0]))
-        for point in points.dropFirst() { view.mouseDragged(with: try event(.leftMouseDragged, point)) }
+        try view.mouseDown(with: event(.leftMouseDown, points[0]))
+        for point in points.dropFirst() {
+            try view.mouseDragged(with: event(.leftMouseDragged, point))
+        }
         let rendered = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rendered)
         func overlayAlpha(_ x: Int, _ y: Int) throws -> CGFloat {
@@ -110,10 +117,10 @@ struct FreehandTests {
         #expect(try abs(overlayAlpha(20, 50) - 0.28) < 0.02)
     }
 
-    @Test func nativeDrawThroughProductionMaskVisionAndPasteCopiesOnlyEnclosedText() async throws {
+    @Test func `native draw through production mask vision and paste copies only enclosed text`() async throws {
         let context = try #require(CGContext(data: nil, width: 900, height: 300, bitsPerComponent: 8,
-                                            bytesPerRow: 3600, space: CGColorSpaceCreateDeviceRGB(),
-                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                                             bytesPerRow: 3600, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
         NSColor.white.setFill()
@@ -129,30 +136,39 @@ struct FreehandTests {
                                        visibleFrame: .init(x: -900, y: 900, width: 900, height: 300))
         let manager = SelectionManager()
         let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board), ocrService: OCRService(),
-            captureService: FreehandImageFixture(image: image), toolbar: TestCaptureToolbar(), selectionManager: manager,
-            displayProvider: { display }, defaultModeProvider: { .freehand })
+                                           captureService: FreehandImageFixture(image: image), toolbar: TestCaptureToolbar(), selectionManager: manager,
+                                           displayProvider: { display }, savedModeProvider: { .freehand })
         var completed = false
-        controller.onTextRecognized = {
-            #expect($0 == "INSIDE")
-            #expect(board.string(forType: .string) == "INSIDE")
-            #expect(controller.state == .idle)
-            completed = true
+        controller.onEvent = { event in
+            switch event {
+            case let .textRecognized(text):
+                #expect(text == "INSIDE")
+                #expect(board.string(forType: .string) == "INSIDE")
+                #expect(controller.state == .idle)
+                completed = true
+            case .failed:
+                Issue.record("Freehand capture failed"); completed = true
+            default: break
+            }
         }
-        controller.onCaptureFailed = { _ in Issue.record("Freehand capture failed"); completed = true }
         controller.start()
         let window = try #require(manager.window)
         let points = [CGPoint(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
                       .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200)]
         func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
             try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
-                                           windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                                            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         }
-        window.selectionView.mouseDown(with: try event(.leftMouseDown, points[0]))
-        for point in points.dropFirst() { window.selectionView.mouseDragged(with: try event(.leftMouseDragged, point)) }
-        window.selectionView.mouseUp(with: try event(.leftMouseUp, points.last!))
+        try window.selectionView.mouseDown(with: event(.leftMouseDown, points[0]))
+        for point in points.dropFirst() {
+            try window.selectionView.mouseDragged(with: event(.leftMouseDragged, point))
+        }
+        try window.selectionView.mouseUp(with: event(.leftMouseUp, #require(points.last)))
         #expect(manager.window == nil && !window.isVisible)
         #expect(controller.state == .processing)
-        for _ in 0..<1500 where !completed { try await Task.sleep(for: .milliseconds(20)) }
+        for _ in 0 ..< 1500 where !completed {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(completed)
         let editor = NSTextView()
         editor.isRichText = false
@@ -165,6 +181,6 @@ private struct FreehandImageFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 42)
-        return try ScreenCaptureService().croppedImage(from: image, region: region, displaySize: .init(width: 900, height: 300))
+        return try ScreenCaptureService().croppedImage(from: self.image, region: region, displaySize: .init(width: 900, height: 300))
     }
 }

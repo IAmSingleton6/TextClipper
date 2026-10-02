@@ -1,16 +1,16 @@
 import AppKit
-import Testing
 @testable import ScreenText
+import Testing
 
-@Suite @MainActor
+@MainActor
 struct CaptureToolbarWindowTests {
-    @Test func positionsToolbarOnDisplaysInEveryDirection() {
+    @Test func `positions toolbar on displays in every direction`() {
         let size = NSSize(width: 260, height: 50)
         let frames = [
             NSRect(x: 0, y: 0, width: 1440, height: 875),
             NSRect(x: -1920, y: 0, width: 1920, height: 1055),
             NSRect(x: 1440, y: -1080, width: 1920, height: 1055),
-            NSRect(x: 0, y: 900, width: 1440, height: 875)
+            NSRect(x: 0, y: 900, width: 1440, height: 875),
         ]
         for visibleFrame in frames {
             let toolbarFrame = CaptureToolbarWindow.positionedFrame(size: size, visibleFrame: visibleFrame)
@@ -20,7 +20,29 @@ struct CaptureToolbarWindowTests {
         }
     }
 
-    @Test func panelIsTransparentFloatingAndDoesNotBecomeTheMainWindow() {
+    @Test func `showing toolbar sets cursor and hover keeps arrow across mode changes`() throws {
+        let panel = CaptureToolbarWindow()
+        defer { panel.hide(); NSCursor.arrow.set() }
+        let display = SelectionDisplay(id: 1, frame: .init(x: -10000, y: -10000, width: 600, height: 400),
+                                       visibleFrame: .init(x: -10000, y: -10000, width: 600, height: 400))
+        let model = CaptureToolbarModel()
+        #expect(panel.show(display: display, model: model, onAction: { _ in }))
+        #expect(NSCursor.current == .crosshair)
+        let view = try #require(panel.contentView)
+        let event = try #require(NSEvent.mouseEvent(with: .mouseMoved, location: .zero,
+                                                    modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber, context: nil,
+                                                    eventNumber: 0, clickCount: 0, pressure: 0))
+        view.mouseEntered(with: event)
+        #expect(NSCursor.current == .arrow)
+        model.mode = .freehand
+        #expect(NSCursor.current == .arrow)
+        model.mode = .box
+        #expect(NSCursor.current == .arrow)
+        view.mouseExited(with: event)
+        #expect(NSCursor.current == .crosshair)
+    }
+
+    @Test func `panel is transparent floating and does not become the main window`() {
         let panel = CaptureToolbarWindow()
         #expect(panel.styleMask.contains(.borderless))
         #expect(panel.styleMask.contains(.nonactivatingPanel))

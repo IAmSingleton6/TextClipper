@@ -3,7 +3,7 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     static let captureText = Self(
         "captureText",
-        initial: .init(.space, modifiers: [.command, .shift])
+        initial: .init(.two, modifiers: [.command, .shift])
     )
 }
 
