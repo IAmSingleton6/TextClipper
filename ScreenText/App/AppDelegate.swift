@@ -18,11 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     private lazy var captureController = CaptureController(
-        savedModeProvider: { [weak self] in
-            self?.settings.lastSelectionMode ?? .box
-        },
-        saveMode: { [weak self] mode in
-            self?.settings.selectCaptureMode(mode)
+        modeProvider: { [settings = self.settings] in settings.lastSelectionMode },
+        saveMode: { [settings = self.settings] mode in settings.selectCaptureMode(mode) },
+        onEvent: { [weak self] event in
+            self?.handleCaptureEvent(event)
         },
     )
 
@@ -41,28 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.menuBarController = MenuBarController { [weak self] action in
             guard let self else { return }
             switch action {
-            case .capture:
+            case .startCapture:
                 self.captureController.toggle()
             case .settings:
                 self.captureController.cancel()
                 self.feedbackController.hide()
                 self.settingsWindowController.show()
-            }
-        }
-
-        self.captureController.onEvent = { [weak self] event in
-            guard let self else { return }
-            switch event {
-            case let .started(display):
-                self.feedbackController.beginCapture(on: display)
-            case let .activityChanged(isActive):
-                self.menuBarController?.setCaptureActive(isActive)
-            case .noTextFound:
-                self.feedbackController.noTextFound()
-            case let .textRecognized(text):
-                self.feedbackController.copiedText(text)
-            case let .failed(error):
-                self.feedbackController.failed(error)
             }
         }
 
@@ -80,6 +63,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
+    }
+
+    private func handleCaptureEvent(_ event: CaptureEvent) {
+        switch event {
+        case let .started(display):
+            self.feedbackController.beginCapture(on: display)
+        case let .activityChanged(isActive):
+            self.menuBarController?.updateCaptureMenuItem(isActive)
+        case .noTextFound:
+            self.feedbackController.onNoTextFound()
+        case let .textRecognized(text):
+            self.feedbackController.onCopiedText(text)
+        case let .failed(error):
+            self.feedbackController.onFailed(error)
+        }
     }
 
     func applicationWillTerminate(_: Notification) {

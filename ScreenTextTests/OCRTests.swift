@@ -16,9 +16,12 @@ struct OCRTextProcessorTests {
 
     @Test func `cleanup preserves code spacing case punctuation and internal blank lines`() {
         let processor = OCRTextProcessor()
-        #expect(processor.clean(" \r\nABC: 123!\r\n\r\n    let total =  42\r\nhttps://example.com?q=1\r\n ")
+        #expect(processor.text(from: [RecognizedTextBlock(
+            text: " \r\nABC: 123!\r\n\r\n    let total =  42\r\nhttps://example.com?q=1\r\n ",
+            bounds: .zero,
+        )])
             == "ABC: 123!\n\n    let total =  42\nhttps://example.com?q=1")
-        #expect(processor.clean(" \t\n\r ").isEmpty)
+        #expect(processor.text(from: [RecognizedTextBlock(text: " \t\n\r ", bounds: .zero)]).isEmpty)
         #expect(processor.text(from: []).isEmpty)
         #expect(processor.text(from: [RecognizedTextBlock(text: " \n", bounds: .zero)]).isEmpty)
     }
@@ -109,24 +112,24 @@ struct OCRProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        var deliveries = 0
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: clipboard,
             ocrService: recognizer,
             captureService: TestScreenCaptureService(),
             toolbar: toolbar,
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                switch event {
+                case .textRecognized, .failed:
+                    deliveries += 1
+                default: break
+                }
+            },
         )
-        var deliveries = 0
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                deliveries += 1
-            case .failed:
-                deliveries += 1
-            default: break
-            }
-        }
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(
@@ -158,25 +161,27 @@ struct OCRProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        let clipboardChanges = NSPasteboard.general.changeCount
+        var failed = false
+        weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: recognizer,
             captureService: TestScreenCaptureService(),
             toolbar: TestCaptureToolbar(),
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                if case let .failed(error) = event {
+                    #expect(error as? OCRError == .recognitionFailed)
+                    #expect(observedController?.state == .idle)
+                    failed = true
+                }
+            },
         )
-        let clipboardChanges = NSPasteboard.general.changeCount
-        var failed = false
-        controller.onEvent = { event in
-            switch event {
-            case let .failed(error):
-                #expect(error as? OCRError == .recognitionFailed)
-                #expect(controller.state == .idle)
-                failed = true
-            default: break
-            }
-        }
+        observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(

@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 protocol CaptureToolbarPresenting: AnyObject {
-    var cursorExclusionRect: CGRect? { get }
+    var cursorExclusionRect: ScreenRect? { get }
 
     func show(
         display: SelectionDisplay,
@@ -15,15 +15,15 @@ protocol CaptureToolbarPresenting: AnyObject {
 }
 
 extension CaptureToolbarPresenting {
-    var cursorExclusionRect: CGRect? {
+    var cursorExclusionRect: ScreenRect? {
         nil
     }
 }
 
 @MainActor
 final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
-    var cursorExclusionRect: CGRect? {
-        isVisible ? frame : nil
+    var cursorExclusionRect: ScreenRect? {
+        isVisible ? ScreenRect(appKitGlobalRect: frame) : nil
     }
 
     init() {
@@ -64,7 +64,10 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
         let hostingView = CaptureToolbarHostingView(rootView: view)
         contentView = hostingView
         setContentSize(hostingView.fittingSize)
-        setFrame(Self.positionedFrame(size: frame.size, visibleFrame: display.visibleFrame), display: true)
+        setFrame(
+            Self.positionedFrame(size: frame.size, visibleFrame: display.visibleFrame).appKitGlobalRect,
+            display: true,
+        )
         orderFrontRegardless()
         displayIfNeeded()
 
@@ -86,9 +89,9 @@ final class CaptureToolbarWindow: NSPanel, CaptureToolbarPresenting {
         contentView = nil
     }
 
-    static func positionedFrame(size: NSSize, visibleFrame: NSRect) -> NSRect {
+    static func positionedFrame(size: NSSize, visibleFrame: ScreenRect) -> ScreenRect {
         let bottomMargin: CGFloat = 24
-        return NSRect(
+        return ScreenRect(
             x: visibleFrame.midX - size.width / 2,
             y: min(visibleFrame.minY + bottomMargin, visibleFrame.maxY - size.height),
             width: size.width,

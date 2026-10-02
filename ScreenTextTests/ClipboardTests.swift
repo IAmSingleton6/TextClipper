@@ -101,20 +101,27 @@ struct ClipboardProcessingTests {
         let display = SelectionDisplay(id: 99, frame: .init(x: -600, y: 400, width: 600, height: 400),
                                        visibleFrame: .init(x: -600, y: 400, width: 600, height: 400))
         let toolbar = TestCaptureToolbar()
-        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
-                                           ocrService: OCRService(), captureService: ImageCaptureFixture(image: image),
-                                           toolbar: toolbar, selectionManager: manager, displayProvider: { display })
         var finished = false
         var copied = false
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                finished = true; copied = true
-            case .failed:
-                Issue.record("Selection-to-paste pipeline failed"); finished = true
-            default: break
-            }
-        }
+        let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: ClipboardService(pasteboard: board),
+            ocrService: OCRService(),
+            captureService: ImageCaptureFixture(image: image),
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+            onEvent: { event in
+                switch event {
+                case .textRecognized:
+                    finished = true; copied = true
+                case .failed:
+                    Issue.record("Selection-to-paste pipeline failed"); finished = true
+                default: break
+                }
+            },
+        )
         controller.start()
         let window = try #require(manager.window)
         window.selectionView.mouseDown(
@@ -162,18 +169,19 @@ struct ClipboardProcessingTests {
     @Test func `success copies before completion and returns idle`() async throws {
         let clipboard = TestClipboardWriter()
         let manager = TestSelectionManager()
-        let controller = controller(clipboard: clipboard, text: "Hello\nworld", manager: manager)
         var completed = false
-        controller.onEvent = { event in
+        weak var observedController: CaptureController?
+        let controller = controller(clipboard: clipboard, text: "Hello\nworld", manager: manager, onEvent: { event in
             switch event {
             case let .textRecognized(text):
                 #expect(text == "Hello\nworld")
                 #expect(clipboard.texts == ["Hello\nworld"])
-                #expect(controller.state == .idle)
+                #expect(observedController?.state == .idle)
                 completed = true
             default: break
             }
-        }
+        })
+        observedController = controller
         self.startSelection(controller, manager: manager)
         for _ in 0 ..< 100 where !completed {
             try await Task.sleep(for: .milliseconds(2))
@@ -184,14 +192,13 @@ struct ClipboardProcessingTests {
     @Test func `empty result returns idle without copy or success callback`() async throws {
         let clipboard = TestClipboardWriter()
         let manager = TestSelectionManager()
-        let controller = controller(clipboard: clipboard, text: " \t\n", manager: manager)
-        controller.onEvent = { event in
+        let controller = controller(clipboard: clipboard, text: " \t\n", manager: manager, onEvent: { event in
             switch event {
             case .textRecognized:
                 Issue.record("Empty OCR must not report copy success")
             default: break
             }
-        }
+        })
         self.startSelection(controller, manager: manager)
         for _ in 0 ..< 100 where controller.isActive {
             try await Task.sleep(for: .milliseconds(2))
@@ -204,19 +211,20 @@ struct ClipboardProcessingTests {
         let clipboard = TestClipboardWriter()
         clipboard.fails = true
         let manager = TestSelectionManager()
-        let controller = controller(clipboard: clipboard, text: "Hello", manager: manager)
         var failed = false
-        controller.onEvent = { event in
+        weak var observedController: CaptureController?
+        let controller = controller(clipboard: clipboard, text: "Hello", manager: manager, onEvent: { event in
             switch event {
             case .textRecognized:
                 Issue.record("Failed write must not report success")
             case let .failed(error):
                 #expect(error as? ClipboardError == .writeFailed)
-                #expect(controller.state == .idle)
+                #expect(observedController?.state == .idle)
                 failed = true
             default: break
             }
-        }
+        })
+        observedController = controller
         self.startSelection(controller, manager: manager)
         for _ in 0 ..< 100 where !failed {
             try await Task.sleep(for: .milliseconds(2))
@@ -226,14 +234,23 @@ struct ClipboardProcessingTests {
     }
 
     private func controller(clipboard: TestClipboardWriter, text: String,
-                            manager: TestSelectionManager) -> CaptureController
+                            manager: TestSelectionManager,
+                            onEvent: @escaping (CaptureEvent) -> Void) -> CaptureController
     {
-        CaptureController(clipboardService: clipboard, ocrService: FixedTextRecognizer(text: text),
-                          captureService: TestScreenCaptureService(), toolbar: TestCaptureToolbar(),
-                          selectionManager: manager, displayProvider: {
-                              SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
-                                               visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
-                          })
+        CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: clipboard,
+            ocrService: FixedTextRecognizer(text: text),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: {
+                SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
+                                 visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+            },
+            onEvent: onEvent,
+        )
     }
 
     private func startSelection(_ controller: CaptureController, manager: TestSelectionManager) {
@@ -251,7 +268,7 @@ struct ImageCaptureFixture: ScreenCapturing {
     let image: CGImage
     func capture(region: Selection) async throws -> CGImage {
         #expect(region.displayID == 99)
-        #expect(region.rect == CGRect(x: 100, y: 50, width: 200, height: 150))
+        #expect(region.rect == DisplayRect(x: 100, y: 50, width: 200, height: 150))
         #expect(region.shape == .rectangle)
         return self.image
     }

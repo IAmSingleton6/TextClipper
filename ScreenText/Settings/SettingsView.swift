@@ -47,13 +47,5 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 420, height: 620)
-        .onAppear {
-            self.login.refresh()
-            self.permissions.refresh()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            self.login.refresh()
-            self.permissions.refresh()
-        }
     }
 }

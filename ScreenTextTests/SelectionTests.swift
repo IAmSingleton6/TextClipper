@@ -50,7 +50,7 @@ struct SelectionTests {
             try window.sendEvent(self.event(.leftMouseDragged, at: .init(x: 120, y: 90), window: window))
             try window.sendEvent(self.event(.leftMouseUp, at: .init(x: 120, y: 90), window: window))
             #expect(started)
-            #expect(completed?.rect == CGRect(x: 20, y: 30, width: 100, height: 60))
+            #expect(completed?.rect == DisplayRect(x: 20, y: 30, width: 100, height: 60))
             #expect(manager.window == nil)
         }
     }
@@ -89,7 +89,12 @@ struct SelectionTests {
         try await Task.sleep(for: .milliseconds(50))
         #expect(NSCursor.current == .crosshair)
         let point = NSEvent.mouseLocation
-        manager.setCursorExclusionRect(CGRect(x: point.x - 10, y: point.y - 10, width: 20, height: 20))
+        manager.setCursorExclusionRect(ScreenRect(appKitGlobalRect: CGRect(
+            x: point.x - 10,
+            y: point.y - 10,
+            width: 20,
+            height: 20,
+        )))
         NSCursor.crosshair.set()
         try await Task.sleep(for: .milliseconds(50))
         #expect(NSCursor.current == .arrow)
@@ -101,15 +106,32 @@ struct SelectionTests {
         #expect(NSCursor.current == .arrow)
     }
 
+    @Test func `invalid replacement preserves active selection and mode updates`() throws {
+        let manager = SelectionManager()
+        defer { manager.hide() }
+        let display = SelectionDisplay(id: 1, frame: .init(x: 0, y: 0, width: 600, height: 400),
+                                       visibleFrame: .init(x: 0, y: 0, width: 600, height: 400))
+        #expect(manager.prepare(display: display, mode: .box, onEvent: { _ in }))
+        let window = try #require(manager.window)
+        manager.setMode(.freehand)
+        #expect(window.mode == .freehand)
+
+        let invalid = SelectionDisplay(id: 2, frame: .zero, visibleFrame: .zero)
+        #expect(!manager.prepare(display: invalid, mode: .box, onEvent: { _ in }))
+        #expect(manager.window === window)
+        #expect(window.isVisible)
+        #expect(window.mode == .freehand)
+    }
+
     @Test func `normalizes all drag directions`() {
-        let pairs: [(CGPoint, CGPoint)] = [
+        let pairs: [(DisplayPoint, DisplayPoint)] = [
             (.init(x: 20, y: 30), .init(x: 120, y: 90)),
             (.init(x: 120, y: 90), .init(x: 20, y: 30)),
             (.init(x: 120, y: 30), .init(x: 20, y: 90)),
             (.init(x: 20, y: 90), .init(x: 120, y: 30)),
         ]
         for (start, end) in pairs {
-            #expect(Selection.normalizedRect(from: start, to: end) == CGRect(x: 20, y: 30, width: 100, height: 60))
+            #expect(Selection.normalizedRect(from: start, to: end) == DisplayRect(x: 20, y: 30, width: 100, height: 60))
         }
     }
 
@@ -124,7 +146,7 @@ struct SelectionTests {
         let window = SelectionWindow(displayFrame: .init(x: -1440, y: 900, width: 600, height: 400))
         let view = window.selectionView
         var started = false
-        var completed: CGRect?
+        var completed: DisplayRect?
         view.onEvent = { event in
             switch event {
             case .started: started = true
@@ -135,9 +157,9 @@ struct SelectionTests {
         try view.mouseDown(with: self.event(.leftMouseDown, at: .init(x: 500, y: 350), window: window))
         #expect(started)
         try view.mouseDragged(with: self.event(.leftMouseDragged, at: .init(x: -100, y: -50), window: window))
-        #expect(view.selectionRect == CGRect(x: 0, y: 0, width: 500, height: 350))
+        #expect(view.selectionRect == DisplayRect(x: 0, y: 0, width: 500, height: 350))
         try view.mouseUp(with: self.event(.leftMouseUp, at: .init(x: -100, y: -50), window: window))
-        #expect(completed == CGRect(x: 0, y: 0, width: 500, height: 350))
+        #expect(completed == DisplayRect(x: 0, y: 0, width: 500, height: 350))
         #expect(view.selectionRect == nil)
     }
 
@@ -162,7 +184,7 @@ struct SelectionTests {
         })
         #expect(prepared)
         let window = try #require(manager.window)
-        #expect(window.frame == display.frame)
+        #expect(window.frame == display.frame.appKitGlobalRect)
         #expect(window.selectionView.bounds.origin == .zero)
         try window.selectionView.mouseDown(with: self.event(.leftMouseDown, at: .init(x: 120, y: 90), window: window))
         try window.selectionView.mouseUp(with: self.event(.leftMouseUp, at: .init(x: 20, y: 30), window: window))
@@ -215,8 +237,8 @@ struct SelectionTests {
             frame: .init(x: -600, y: 400, width: 600, height: 400),
             visibleFrame: .init(x: -600, y: 400, width: 600, height: 400),
         )
-        let path = [CGPoint(x: 20, y: 30), CGPoint(x: 120, y: 30), CGPoint(x: 120, y: 90),
-                    CGPoint(x: 70, y: 60), CGPoint(x: 20, y: 90)]
+        let path = [DisplayPoint(x: 20, y: 30), .init(x: 120, y: 30), .init(x: 120, y: 90),
+                    .init(x: 70, y: 60), .init(x: 20, y: 90)]
         for points in [path, Array(path.reversed())] {
             var completed: Selection?
             let prepared = manager.prepare(display: display, mode: .box, onEvent: { event in
@@ -232,11 +254,23 @@ struct SelectionTests {
             #expect(prepared)
             manager.setMode(.freehand)
             let window = try #require(manager.window)
-            try window.selectionView.mouseDown(with: self.event(.leftMouseDown, at: points[0], window: window))
+            try window.selectionView.mouseDown(with: self.event(
+                .leftMouseDown,
+                at: points[0].displayLocalPoint,
+                window: window,
+            ))
             for point in points.dropFirst() {
-                try window.selectionView.mouseDragged(with: self.event(.leftMouseDragged, at: point, window: window))
+                try window.selectionView.mouseDragged(with: self.event(
+                    .leftMouseDragged,
+                    at: point.displayLocalPoint,
+                    window: window,
+                ))
             }
-            try window.selectionView.mouseUp(with: self.event(.leftMouseUp, at: #require(points.last), window: window))
+            try window.selectionView.mouseUp(with: self.event(
+                .leftMouseUp,
+                at: #require(points.last).displayLocalPoint,
+                window: window,
+            ))
             #expect(completed == Selection(
                 displayID: 42,
                 rect: .init(x: 20, y: 30, width: 100, height: 60),

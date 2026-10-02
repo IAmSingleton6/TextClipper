@@ -15,28 +15,40 @@ struct MultiDisplayTests {
     @Test func `chooses cursor display across boundaries and gaps`() {
         let displays = layouts.enumerated().map { SelectionDisplay(
             id: UInt32($0.offset + 1),
-            frame: $0.element,
-            visibleFrame: $0.element,
+            frame: ScreenRect(appKitGlobalRect: $0.element),
+            visibleFrame: ScreenRect(appKitGlobalRect: $0.element),
         ) }
         for display in displays {
             let result = SelectionDisplay.containing(
-                CGPoint(x: display.frame.midX, y: display.frame.midY),
+                ScreenPoint(appKitGlobalPoint: CGPoint(x: display.frame.midX, y: display.frame.midY)),
                 in: displays,
             )
             #expect(result?.id == display.id)
         }
-        #expect(SelectionDisplay.containing(CGPoint(x: 0, y: 400), in: displays)?.id == 1)
-        #expect(SelectionDisplay.containing(CGPoint(x: -0.01, y: 400), in: displays)?.id == 2)
-        #expect(SelectionDisplay.containing(CGPoint(x: 600, y: 800), in: displays)?.id == 4)
-        #expect(SelectionDisplay.containing(CGPoint(x: 1200, y: -400), in: displays)?.id == 3)
-        #expect(SelectionDisplay.containing(CGPoint(x: 3000, y: 3000), in: displays) == nil)
-        #expect(SelectionDisplay.containing(CGPoint(x: CGFloat.nan, y: 0), in: displays) == nil)
+        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 0, y: 400)), in: displays)?
+            .id == 1)
+        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: -0.01, y: 400)), in: displays)?
+            .id == 2)
+        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 600, y: 800)), in: displays)?
+            .id == 4)
+        #expect(SelectionDisplay.containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 1200, y: -400)), in: displays)?
+            .id == 3)
+        #expect(SelectionDisplay
+            .containing(ScreenPoint(appKitGlobalPoint: CGPoint(x: 3000, y: 3000)), in: displays) == nil)
+        #expect(SelectionDisplay.containing(
+            ScreenPoint(appKitGlobalPoint: CGPoint(x: CGFloat.nan, y: 0)),
+            in: displays,
+        ) == nil)
         #expect(SelectionDisplay.containing(.zero, in: []) == nil)
     }
 
     @Test(arguments: layouts)
     func `native drags remain display local in every direction`(frame: CGRect) throws {
-        let display = SelectionDisplay(id: 42, frame: frame, visibleFrame: frame.insetBy(dx: 0, dy: 20))
+        let display = SelectionDisplay(
+            id: 42,
+            frame: ScreenRect(appKitGlobalRect: frame),
+            visibleFrame: ScreenRect(appKitGlobalRect: frame.insetBy(dx: 0, dy: 20)),
+        )
         let corners = [
             (CGPoint(x: 100, y: 50), CGPoint(x: 300, y: 250)),
             (CGPoint(x: 300, y: 250), CGPoint(x: 100, y: 50)),
@@ -72,7 +84,7 @@ struct MultiDisplayTests {
                 window.selectionView.mouseDragged(with: self.makeEvent(.leftMouseDragged, at: end, window: window))
                 window.selectionView.mouseUp(with: self.makeEvent(.leftMouseUp, at: end, window: window))
                 #expect(result?.displayID == 42)
-                #expect(result?.rect == CGRect(x: 100, y: 50, width: 200, height: 200))
+                #expect(result?.rect == DisplayRect(x: 100, y: 50, width: 200, height: 200))
                 guard let shape = result?.shape else {
                     Issue.record("Valid drag did not produce a shape")
                     continue
@@ -109,27 +121,36 @@ struct MultiDisplayTests {
 
     @Test(arguments: [CGFloat(1), 1.25, 1.5, 2, 3])
     func `scales corners and entire display without global origin`(scale: CGFloat) throws {
-        let converter = DisplayCoordinateConverter()
         let points = CGSize(width: 1200, height: 800)
-        let pixels = try converter.imageSize(displaySize: points, pixelScale: scale)
-        #expect(try converter.pixelRect(
-            for: CGRect(origin: .zero, size: points),
+        let pixels = try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: points, pointPixelScale: scale)
+        let fullDisplay = try ImageCoordinates.toPixelRect(
+            from: DisplayRect(displayLocalRect: CGRect(origin: .zero, size: points)),
             displaySize: points,
             imageSize: pixels,
         )
-            == CGRect(origin: .zero, size: pixels))
-        #expect(try converter.pixelRect(
-            for: CGRect(x: 0, y: 0, width: 100, height: 100),
+        let bottomLeft = try ImageCoordinates.toPixelRect(
+            from: DisplayRect(x: 0, y: 0, width: 100, height: 100),
             displaySize: points,
             imageSize: pixels,
         )
-            == CGRect(x: 0, y: 700 * scale, width: 100 * scale, height: 100 * scale))
-        #expect(try converter.pixelRect(
-            for: CGRect(x: 1100, y: 700, width: 100, height: 100),
+        let topRight = try ImageCoordinates.toPixelRect(
+            from: DisplayRect(x: 1100, y: 700, width: 100, height: 100),
             displaySize: points,
             imageSize: pixels,
         )
-            == CGRect(x: 1100 * scale, y: 0, width: 100 * scale, height: 100 * scale))
+        #expect(fullDisplay == ImagePixelRect(cgImageCropRect: CGRect(origin: .zero, size: pixels)))
+        #expect(bottomLeft == ImagePixelRect(cgImageCropRect: CGRect(
+            x: 0,
+            y: 700 * scale,
+            width: 100 * scale,
+            height: 100 * scale,
+        )))
+        #expect(topRight == ImagePixelRect(cgImageCropRect: CGRect(
+            x: 1100 * scale,
+            y: 0,
+            width: 100 * scale,
+            height: 100 * scale,
+        )))
     }
 
     @Test func `overlays match connected displays including menu bar`() throws {
@@ -139,16 +160,16 @@ struct MultiDisplayTests {
             let number = try #require(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
             let display = SelectionDisplay(
                 id: number.uint32Value,
-                frame: screen.frame,
-                visibleFrame: screen.visibleFrame,
+                frame: ScreenRect(appKitGlobalRect: screen.frame),
+                visibleFrame: ScreenRect(appKitGlobalRect: screen.visibleFrame),
             )
             let prepared = manager.prepare(display: display, mode: .box, onEvent: { _ in })
             #expect(prepared)
             #expect(manager.window?.frame == screen.frame)
             #expect(manager.window?.selectionView.bounds == CGRect(origin: .zero, size: screen.frame.size))
-            let pixels = try DisplayCoordinateConverter().imageSize(
-                displaySize: screen.frame.size,
-                pixelScale: screen.backingScaleFactor,
+            let pixels = try ScreenshotSizing.requestedPixelSize(
+                forDisplayPointSize: screen.frame.size,
+                pointPixelScale: screen.backingScaleFactor,
             )
             #expect(pixels.width == ceil(screen.frame.width * screen.backingScaleFactor))
             #expect(pixels.height == ceil(screen.frame.height * screen.backingScaleFactor))
@@ -157,28 +178,29 @@ struct MultiDisplayTests {
     }
 
     @Test func `invalid and overflowed geometry is rejected`() {
-        let converter = DisplayCoordinateConverter()
         let size = CGSize(width: 100, height: 100)
-        #expect(!Selection.isValid(CGRect(x: CGFloat.infinity, y: 0, width: 10, height: 10)))
+        #expect(!Selection.isValid(DisplayRect(x: CGFloat.infinity, y: 0, width: 10, height: 10)))
         #expect(throws: ScreenCaptureError.invalidRegion) {
-            try converter.pixelRect(
-                for: CGRect(x: CGFloat.greatestFiniteMagnitude, y: 0, width: CGFloat.greatestFiniteMagnitude,
-                            height: 10),
-                displaySize: size,
-                imageSize: size,
-            )
+            try ImageCoordinates.toPixelRect(from: DisplayRect(
+                x: CGFloat.greatestFiniteMagnitude,
+                y: 0,
+                width: CGFloat.greatestFiniteMagnitude,
+                height: 10,
+            ),
+            displaySize: size,
+            imageSize: size)
         }
         #expect(throws: ScreenCaptureError.invalidRegion) {
-            try converter.pixelRect(
-                for: CGRect(x: 0, y: 0, width: 1, height: 1),
+            try ImageCoordinates.toPixelRect(
+                from: DisplayRect(x: 0, y: 0, width: 1, height: 1),
                 displaySize: CGSize(width: CGFloat.leastNonzeroMagnitude, height: 1),
                 imageSize: size,
             )
         }
         #expect(throws: ScreenCaptureError.invalidRegion) {
-            try converter.imageSize(
-                displaySize: CGSize(width: CGFloat.leastNonzeroMagnitude, height: 1),
-                pixelScale: CGFloat.leastNonzeroMagnitude,
+            try ScreenshotSizing.requestedPixelSize(
+                forDisplayPointSize: CGSize(width: CGFloat.leastNonzeroMagnitude, height: 1),
+                pointPixelScale: CGFloat.leastNonzeroMagnitude,
             )
         }
     }
@@ -189,19 +211,32 @@ struct MultiDisplayTests {
         let manager = TestSelectionManager()
         let toolbar = TestCaptureToolbar()
         let clipboard = TestClipboardWriter()
-        let display = SelectionDisplay(id: 1, frame: layouts[0], visibleFrame: layouts[0])
-        let controller = CaptureController(clipboardService: clipboard, ocrService: TestTextRecognizer(),
-                                           captureService: service, toolbar: toolbar, selectionManager: manager,
-                                           displayProvider: { display })
+        let display = SelectionDisplay(
+            id: 1,
+            frame: ScreenRect(appKitGlobalRect: layouts[0]),
+            visibleFrame: ScreenRect(appKitGlobalRect: layouts[0]),
+        )
+        let selection = Selection(
+            displayID: 1,
+            rect: DisplayRect(displayLocalRect: CGRect(x: 10, y: 10, width: 100, height: 60)),
+            shape: .rectangle,
+        )
+        let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: clipboard,
+            ocrService: TestTextRecognizer(),
+            captureService: service,
+            toolbar: toolbar,
+            selectionManager: manager,
+            displayProvider: { display },
+            onEvent: { event in
+                if case .textRecognized = event {
+                    Issue.record("Stale display result was delivered")
+                }
+            },
+        )
         let observer = DisplayConfigurationObserver(center: center) { controller.cancel() }
-        let selection = Selection(displayID: 1, rect: CGRect(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                Issue.record("Stale display result was delivered")
-            default: break
-            }
-        }
         controller.start()
         center.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         #expect(controller.state == .idle && !toolbar.isVisible && !manager.isVisible)

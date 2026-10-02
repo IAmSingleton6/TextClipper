@@ -2,7 +2,7 @@ import AppKit
 import KeyboardShortcuts
 
 enum MenuBarAction {
-    case capture
+    case startCapture
     case settings
 }
 
@@ -35,7 +35,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
 
-        let captureItem = NSMenuItem(title: "Capture Text", action: #selector(captureText), keyEquivalent: "")
+        let captureItem = NSMenuItem(title: "Capture Text", action: #selector(startCapture), keyEquivalent: "")
         captureItem.target = self
         captureItem.setShortcut(for: AppShortcuts.captureText)
         self.captureItem = captureItem
@@ -56,7 +56,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         self.statusItem.menu = menu
     }
 
-    func setCaptureActive(_ isActive: Bool) {
+    func updateCaptureMenuItem(_ isActive: Bool) {
         self.captureItem?.state = isActive ? .on : .off
     }
 
@@ -69,8 +69,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         KeyboardShortcuts.enable(AppShortcuts.captureText)
     }
 
-    @objc private func captureText() {
-        self.onAction(.capture)
+    @objc private func startCapture() {
+        self.onAction(.startCapture)
     }
 
     @objc private func showSettings() {

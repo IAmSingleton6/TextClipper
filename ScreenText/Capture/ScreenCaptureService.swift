@@ -15,91 +15,81 @@ protocol ScreenCapturing: Sendable {
 struct ScreenCaptureService: ScreenCapturing {
     func capture(region: Selection) async throws -> CGImage {
         try Task.checkCancellation()
-        if !CGPreflightScreenCaptureAccess() {
-            let granted = await MainActor.run { CGRequestScreenCaptureAccess() }
-            guard granted else { throw ScreenCaptureError.permissionDenied }
-        }
+        try await self.requestPermissionIfNeeded()
+
         try Task.checkCancellation()
-        let content: SCShareableContent
-        do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        } catch {
-            if (error as NSError).domain == SCStreamErrorDomain,
-               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue
-            {
-                throw ScreenCaptureError.permissionDenied
-            }
-            throw ScreenCaptureError.captureFailed
-        }
+        let capturedDisplay = try await captureDisplay(for: region)
+
+        try Task.checkCancellation()
+        return try CaptureImageCropper().crop(
+            capturedDisplay.image,
+            to: region,
+            displayPointSize: capturedDisplay.displayPointSize,
+        )
+    }
+
+    private func requestPermissionIfNeeded() async throws {
+        guard !CGPreflightScreenCaptureAccess() else { return }
+        let granted = await MainActor.run { CGRequestScreenCaptureAccess() }
+        guard granted else { throw ScreenCaptureError.permissionDenied }
+    }
+
+    private func captureDisplay(for region: Selection) async throws -> CapturedDisplay {
+        let content = try await self.loadShareableContent()
         guard let display = content.displays.first(where: { $0.displayID == region.displayID }) else {
             throw ScreenCaptureError.displayNotFound
         }
-        // Exclude capture/feedback panels, including any retained compositor frame,
-        // but keep ordinary app windows such as Settings in the screenshot.
-        let capturableWindowIDs = await MainActor.run {
-            Self.capturableWindowIDs(in: NSApp.windows)
+
+        let filter = await CaptureWindowFilter.makeContentFilter(for: display, from: content)
+        let displayPointSize = filter.contentRect.size
+        let configuration = try self.makeConfiguration(
+            displayPointSize: displayPointSize,
+            pixelScale: CGFloat(filter.pointPixelScale),
+        )
+        let image = try await captureImage(filter: filter, configuration: configuration)
+
+        return CapturedDisplay(image: image, displayPointSize: displayPointSize)
+    }
+
+    private struct CapturedDisplay {
+        let image: CGImage
+        let displayPointSize: CGSize
+    }
+
+    private func loadShareableContent() async throws -> SCShareableContent {
+        do {
+            return try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        } catch {
+            throw self.captureError(for: error)
         }
-        let ownApps = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-        let ownWindows = content.windows.filter {
-            $0.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier
-                && capturableWindowIDs.contains($0.windowID)
-        }
-        let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: ownWindows)
-        if #available(macOS 14.2, *) {
-            filter.includeMenuBar = true
-        }
-        let converter = DisplayCoordinateConverter()
-        let pointSize = filter.contentRect.size
-        let pixelSize = try converter.imageSize(displaySize: pointSize, pixelScale: CGFloat(filter.pointPixelScale))
+    }
+
+    private func makeConfiguration(displayPointSize: CGSize, pixelScale: CGFloat) throws -> SCStreamConfiguration {
+        let imageSize = try ScreenshotSizing.requestedPixelSize(
+            forDisplayPointSize: displayPointSize,
+            pointPixelScale: pixelScale,
+        )
         let configuration = SCStreamConfiguration()
-        configuration.width = Int(pixelSize.width)
-        configuration.height = Int(pixelSize.height)
+        configuration.width = Int(imageSize.width)
+        configuration.height = Int(imageSize.height)
         configuration.showsCursor = false
         configuration.capturesAudio = false
-        let image: CGImage
+        return configuration
+    }
+
+    private func captureImage(filter: SCContentFilter, configuration: SCStreamConfiguration) async throws -> CGImage {
         do {
-            image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+            return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         } catch {
-            if (error as NSError).domain == SCStreamErrorDomain,
-               (error as NSError).code == SCStreamError.Code.userDeclined.rawValue
-            {
-                throw ScreenCaptureError.permissionDenied
-            }
-            throw ScreenCaptureError.captureFailed
+            throw self.captureError(for: error)
         }
-        try Task.checkCancellation()
-        return try self.croppedImage(from: image, region: region, displaySize: pointSize)
     }
 
-    @MainActor
-    static func capturableWindowIDs(in windows: [NSWindow]) -> Set<CGWindowID> {
-        Set(windows.compactMap { window -> CGWindowID? in
-            guard !(window is NSPanel), !(window is SelectionWindow) else { return nil }
-            return self.capturableWindowID(for: window.windowNumber)
-        })
-    }
-
-    static func capturableWindowID(for number: Int) -> CGWindowID? {
-        guard number > 0 else { return nil }
-        return CGWindowID(exactly: number)
-    }
-
-    /// Shared with offline image tests so the exact capture crop/mask path is verified.
-    func croppedImage(from image: CGImage, region: Selection, displaySize: CGSize) throws -> CGImage {
-        let converter = DisplayCoordinateConverter()
-        let imageSize = CGSize(width: image.width, height: image.height)
-        let cropRect = try converter.pixelRect(for: region.rect, displaySize: displaySize, imageSize: imageSize)
-        guard let cropped = image.cropping(to: cropRect) else { throw ScreenCaptureError.captureFailed }
-        switch region.shape {
-        case .rectangle: return cropped
-        case let .freehand(points):
-            let localPoints = try converter.maskPoints(
-                for: points,
-                displaySize: displaySize,
-                imageSize: imageSize,
-                cropRect: cropRect,
-            )
-            return try ImageMasker().applyFreehandMask(to: cropped, points: localPoints)
+    private func captureError(for error: Error) -> ScreenCaptureError {
+        let error = error as NSError
+        if error.domain == SCStreamErrorDomain, error.code == SCStreamError.Code.userDeclined.rawValue {
+            return .permissionDenied
         }
+        return .captureFailed
     }
 }

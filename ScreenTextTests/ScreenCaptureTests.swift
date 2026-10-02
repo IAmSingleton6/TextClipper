@@ -3,81 +3,107 @@ import CoreGraphics
 @testable import ScreenText
 import Testing
 
-@MainActor
-struct CaptureWindowFilterTests {
-    @Test func `invalid and oversized window numbers are excluded`() {
-        let numbers = [-1, 0, 42, Int(CGWindowID.max), Int(CGWindowID.max) + 1, Int.max]
-        let ids = numbers.compactMap { ScreenCaptureService.capturableWindowID(for: $0) }
-        #expect(ids == [42, CGWindowID.max])
-    }
-
-    @Test func `settings is capturable but capture and feedback panels are excluded`() throws {
-        let settings =
-            SettingsWindowController(settings: SettingsStore(persistence: SettingsPersistence(defaults: .standard)))
-        let window = try #require(settings.window)
-        let panels: [NSWindow] = [
-            CaptureToolbarWindow(),
-            SelectionWindow(displayFrame: .init(x: 0, y: 0, width: 600, height: 400)),
-            CapturedTextWindow(),
-            NSPanel(contentRect: .init(x: 0, y: 0, width: 100, height: 60),
-                    styleMask: .borderless, backing: .buffered, defer: false),
-        ]
-        let ids = ScreenCaptureService.capturableWindowIDs(in: [window] + panels)
-        #expect(ids == Set([CGWindowID(window.windowNumber)]))
-    }
-}
-
-struct DisplayCoordinateConverterTests {
+struct ImageCoordinatesTests {
     @Test func `flips vertical origin and uses actual image scale`() throws {
-        let converter = DisplayCoordinateConverter()
-        let rect = CGRect(x: 20, y: 30, width: 100, height: 60)
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
-            imageSize: .init(width: 600, height: 400),
-        ) == CGRect(x: 20, y: 310, width: 100, height: 60))
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
+        let displaySize = CGSize(width: 600, height: 400)
+        let rect = DisplayRect(x: 20, y: 30, width: 100, height: 60)
+        let native = try ImageCoordinates.toPixelRect(
+            from: rect,
+            displaySize: displaySize,
+            imageSize: displaySize,
+        )
+        let doubled = try ImageCoordinates.toPixelRect(
+            from: rect,
+            displaySize: displaySize,
             imageSize: .init(width: 1200, height: 800),
-        ) == CGRect(x: 40, y: 620, width: 200, height: 120))
-        #expect(try converter.pixelRect(
-            for: rect,
-            displaySize: .init(width: 600, height: 400),
+        )
+        let uneven = try ImageCoordinates.toPixelRect(
+            from: rect,
+            displaySize: displaySize,
             imageSize: .init(width: 900, height: 1000),
-        ) == CGRect(x: 30, y: 775, width: 150, height: 150))
+        )
+        #expect(native == ImagePixelRect(cgImageCropRect: CGRect(x: 20, y: 310, width: 100, height: 60)))
+        #expect(doubled == ImagePixelRect(cgImageCropRect: CGRect(x: 40, y: 620, width: 200, height: 120)))
+        #expect(uneven == ImagePixelRect(cgImageCropRect: CGRect(x: 30, y: 775, width: 150, height: 150)))
     }
 
     @Test func `clips to display and rounds outward`() throws {
-        let converter = DisplayCoordinateConverter()
         let size = CGSize(width: 100, height: 100)
-        #expect(try converter.pixelRect(
-            for: .init(x: -20, y: -10, width: 140, height: 130),
+        let clipped = try ImageCoordinates.toPixelRect(
+            from: .init(x: -20, y: -10, width: 140, height: 130),
             displaySize: size,
             imageSize: size,
-        ) == CGRect(origin: .zero, size: size))
-        #expect(try converter.pixelRect(
-            for: .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5),
+        )
+        let fractional = try ImageCoordinates.toPixelRect(
+            from: .init(x: 10.25, y: 20.25, width: 30.5, height: 40.5),
             displaySize: size,
             imageSize: .init(width: 200, height: 200),
-        ) == CGRect(x: 20, y: 78, width: 62, height: 82))
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .zero,
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .init(x: 101, y: 0, width: 10, height: 10),
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.pixelRect(
-            for: .init(x: CGFloat.nan, y: 0, width: 10, height: 10),
-            displaySize: size,
-            imageSize: size,
-        ) }
-        #expect(throws: ScreenCaptureError.invalidRegion) { try converter.imageSize(displaySize: size, pixelScale: 0) }
-        #expect(try converter.imageSize(displaySize: size, pixelScale: 2) == CGSize(width: 200, height: 200))
+        )
+        #expect(clipped == ImagePixelRect(cgImageCropRect: CGRect(origin: .zero, size: size)))
+        #expect(fractional == ImagePixelRect(cgImageCropRect: CGRect(x: 20, y: 78, width: 62, height: 82)))
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ImageCoordinates.toPixelRect(
+                from: .zero,
+                displaySize: size,
+                imageSize: size,
+            )
+        }
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ImageCoordinates.toPixelRect(
+                from: .init(x: 101, y: 0, width: 10, height: 10),
+                displaySize: size,
+                imageSize: size,
+            )
+        }
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ImageCoordinates.toPixelRect(
+                from: .init(x: CGFloat.nan, y: 0, width: 10, height: 10),
+                displaySize: size,
+                imageSize: size,
+            )
+        }
+    }
+
+    @Test func `mask path uses coordinates inside the cropped image`() throws {
+        let displaySize = CGSize(width: 100, height: 100)
+        let imageSize = CGSize(width: 200, height: 200)
+        let imageCropRect = try ImageCoordinates.toPixelRect(
+            from: DisplayRect(x: 10, y: 10, width: 20, height: 20),
+            displaySize: displaySize,
+            imageSize: imageSize,
+        )
+        let maskPoints = try ImageCoordinates.toCroppedPoints(
+            from: [DisplayPoint(x: 10, y: 10), DisplayPoint(x: 30, y: 30)],
+            cropRect: imageCropRect,
+            displaySize: displaySize,
+            imageSize: imageSize,
+        )
+        #expect(maskPoints == [CroppedImagePixelPoint(x: 0, y: 0), CroppedImagePixelPoint(x: 40, y: 40)])
+    }
+
+    @Test func `fractional crop keeps freehand points in cropped bottom left pixels`() throws {
+        let displaySize = CGSize(width: 100, height: 80)
+        let imageSize = CGSize(width: 250, height: 120)
+        let crop = try ImageCoordinates.toPixelRect(
+            from: .init(x: 10.2, y: 20.2, width: 30.4, height: 25.6),
+            displaySize: displaySize,
+            imageSize: imageSize,
+        )
+        #expect(crop == ImagePixelRect(cgImageCropRect: CGRect(x: 25, y: 51, width: 77, height: 39)))
+        let points = try ImageCoordinates.toCroppedPoints(
+            from: [.init(x: 10.2, y: 20.2), .init(x: 40.6, y: 45.8)],
+            cropRect: crop,
+            displaySize: displaySize,
+            imageSize: imageSize,
+        )
+        #expect(abs(points[0].x - 0.5) < 0.0001)
+        #expect(abs(points[0].y - 0.3) < 0.0001)
+        #expect(abs(points[1].x - 76.5) < 0.0001)
+        #expect(abs(points[1].y - 38.7) < 0.0001)
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ImageCoordinates.toCroppedPoints(from: [.init(x: .nan, y: 20)], cropRect: crop,
+                                                 displaySize: displaySize, imageSize: imageSize)
+        }
     }
 
     @Test func `crop reads selected pixels rather than mirrored region`() throws {
@@ -104,15 +130,26 @@ struct DisplayCoordinateConverterTests {
             shouldInterpolate: false,
             intent: .defaultIntent,
         ))
-        let rect = try DisplayCoordinateConverter().pixelRect(
-            for: .init(x: 10, y: 10, width: 20, height: 20),
+        let imageCropRect = try ImageCoordinates.toPixelRect(
+            from: .init(x: 10, y: 10, width: 20, height: 20),
             displaySize: .init(width: 100, height: 100),
             imageSize: .init(width: 200, height: 200),
         )
-        let cropped = try #require(image.cropping(to: rect))
+        let cropped = try #require(image.cropping(to: imageCropRect.cgImageCropRect))
         #expect(cropped.width == 40 && cropped.height == 40)
         let pixels = try #require(cropped.dataProvider?.data) as Data
         #expect(pixels[0] == 255 && pixels[2] == 0)
+    }
+}
+
+struct ScreenshotSizingTests {
+    @Test func `rounds requested pixels up and rejects invalid scale`() throws {
+        let displaySize = CGSize(width: 100, height: 100)
+        #expect(try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: displaySize, pointPixelScale: 1.25)
+            == CGSize(width: 125, height: 125))
+        #expect(throws: ScreenCaptureError.invalidRegion) {
+            try ScreenshotSizing.requestedPixelSize(forDisplayPointSize: displaySize, pointPixelScale: 0)
+        }
     }
 }
 
@@ -167,24 +204,24 @@ struct CaptureProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        var deliveries = 0
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: service,
             toolbar: toolbar,
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                switch event {
+                case .textRecognized, .failed:
+                    deliveries += 1
+                default: break
+                }
+            },
         )
-        var deliveries = 0
-        controller.onEvent = { event in
-            switch event {
-            case .textRecognized:
-                deliveries += 1
-            case .failed:
-                deliveries += 1
-            default: break
-            }
-        }
         controller.start()
         manager.onEvent?(.started)
         let selection = Selection(displayID: 1, rect: .init(x: 10, y: 10, width: 100, height: 60), shape: .rectangle)
@@ -212,25 +249,27 @@ struct CaptureProcessingTests {
             frame: .init(x: 0, y: 0, width: 600, height: 400),
             visibleFrame: .init(x: 0, y: 0, width: 600, height: 400),
         )
+        var failed = false
+        let changeCount = NSPasteboard.general.changeCount
+        weak var observedController: CaptureController?
         let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
             clipboardService: TestClipboardWriter(),
             ocrService: TestTextRecognizer(),
             captureService: service,
             toolbar: TestCaptureToolbar(),
             selectionManager: manager,
             displayProvider: { display },
+            onEvent: { event in
+                if case let .failed(error) = event {
+                    #expect(error as? ScreenCaptureError == .permissionDenied)
+                    #expect(observedController?.state == .idle)
+                    failed = true
+                }
+            },
         )
-        var failed = false
-        let changeCount = NSPasteboard.general.changeCount
-        controller.onEvent = { event in
-            switch event {
-            case let .failed(error):
-                #expect(error as? ScreenCaptureError == .permissionDenied)
-                #expect(controller.state == .idle)
-                failed = true
-            default: break
-            }
-        }
+        observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(

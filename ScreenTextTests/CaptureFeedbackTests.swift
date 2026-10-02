@@ -4,8 +4,11 @@ import Testing
 
 @MainActor
 struct CaptureFeedbackTests {
-    private let display = SelectionDisplay(id: 7, frame: CGRect(x: -1440, y: 900, width: 1440, height: 900),
-                                           visibleFrame: CGRect(x: -1440, y: 900, width: 1440, height: 875))
+    private let display = SelectionDisplay(
+        id: 7,
+        frame: ScreenRect(appKitGlobalRect: CGRect(x: -1440, y: 900, width: 1440, height: 900)),
+        visibleFrame: ScreenRect(appKitGlobalRect: CGRect(x: -1440, y: 900, width: 1440, height: 875)),
+    )
 
     @Test func `preference defaults on and persists without captured text`() throws {
         let name = "com.screentext.tests.\(UUID())"
@@ -34,29 +37,29 @@ struct CaptureFeedbackTests {
             onPermissionRequired: { permissionRequests += 1 },
         )
         feedback.beginCapture(on: self.display)
-        feedback.copiedText("Hello")
+        feedback.onCopiedText("Hello")
         #expect(popup.text == nil)
         settings.showCapturedText = true
-        feedback.copiedText("Hello")
+        feedback.onCopiedText("Hello")
         #expect(popup.text == "Hello")
         #expect(popup.display?.id == self.display.id)
-        feedback.noTextFound()
+        feedback.onNoTextFound()
         #expect(popup.text == nil)
         #expect(notifications.message == "No text found")
         #expect(notifications.display?.id == self.display.id)
-        feedback.failed(ClipboardError.writeFailed)
+        feedback.onFailed(ClipboardError.writeFailed)
         #expect(notifications.message == "Could not copy text to the clipboard")
-        feedback.failed(OCRError.recognitionFailed)
+        feedback.onFailed(OCRError.recognitionFailed)
         #expect(notifications.message == "Could not read selected text")
-        feedback.failed(ScreenCaptureError.displayNotFound)
+        feedback.onFailed(ScreenCaptureError.displayNotFound)
         #expect(notifications.message == "Display is no longer available")
-        feedback.failed(ScreenCaptureError.permissionDenied)
+        feedback.onFailed(ScreenCaptureError.permissionDenied)
         #expect(permissionRequests == 1)
         #expect(notifications.message == nil)
-        feedback.copiedText("Previous capture")
+        feedback.onCopiedText("Previous capture")
         feedback.beginCapture(on: self.display)
         #expect(popup.text == nil)
-        feedback.copiedText(" \n")
+        feedback.onCopiedText(" \n")
         #expect(popup.text == nil)
     }
 
@@ -66,26 +69,31 @@ struct CaptureFeedbackTests {
         board.setString("Keep this", forType: .string)
         let count = board.changeCount
         let manager = TestSelectionManager()
-        let controller = CaptureController(clipboardService: ClipboardService(pasteboard: board),
-                                           ocrService: FixedTextRecognizer(text: " \n"),
-                                           captureService: TestScreenCaptureService(),
-                                           toolbar: TestCaptureToolbar(), selectionManager: manager,
-                                           displayProvider: { self.display })
         var notified = false
-        controller.onEvent = { event in
-            switch event {
-            case .noTextFound:
-                #expect(controller.state == .idle)
-                #expect(board.changeCount == count)
-                notified = true
-            default: break
-            }
-        }
+        weak var observedController: CaptureController?
+        let controller = CaptureController(
+            modeProvider: { .box },
+            saveMode: { _ in },
+            clipboardService: ClipboardService(pasteboard: board),
+            ocrService: FixedTextRecognizer(text: " \n"),
+            captureService: TestScreenCaptureService(),
+            toolbar: TestCaptureToolbar(),
+            selectionManager: manager,
+            displayProvider: { self.display },
+            onEvent: { event in
+                if case .noTextFound = event {
+                    #expect(observedController?.state == .idle)
+                    #expect(board.changeCount == count)
+                    notified = true
+                }
+            },
+        )
+        observedController = controller
         controller.start()
         manager.onEvent?(.started)
         manager.onEvent?(.completed(Selection(
             displayID: self.display.id,
-            rect: CGRect(x: 10, y: 20, width: 100, height: 60),
+            rect: DisplayRect(displayLocalRect: CGRect(x: 10, y: 20, width: 100, height: 60)),
             shape: .rectangle,
         )))
         for _ in 0 ..< 100 where !notified {

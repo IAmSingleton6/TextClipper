@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private let login: LoginItemController
+    private let permissions: PermissionManager
 
     init(
         settings: SettingsStore,
@@ -11,6 +12,7 @@ final class SettingsWindowController: NSWindowController {
         login: LoginItemController = LoginItemController(),
     ) {
         self.login = login
+        self.permissions = permissions
 
         let host = NSHostingView(
             rootView: SettingsView(
@@ -31,6 +33,12 @@ final class SettingsWindowController: NSWindowController {
         window.center()
 
         super.init(window: window)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.applicationDidBecomeActive(_:)),
+            name: NSApplication.didBecomeActiveNotification,
+            object: NSApp,
+        )
     }
 
     @available(*, unavailable)
@@ -39,7 +47,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func show() {
-        self.login.refresh()
+        self.refreshExternalStatuses()
         guard let window else { return }
         if window.isMiniaturized {
             window.deminiaturize(nil)
@@ -47,5 +55,19 @@ final class SettingsWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         window.orderFrontRegardless()
+    }
+
+    @objc private func applicationDidBecomeActive(_: Notification) {
+        guard self.window?.isVisible == true else { return }
+        self.refreshExternalStatuses()
+    }
+
+    private func refreshExternalStatuses() {
+        self.login.refresh()
+        self.permissions.refresh()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
