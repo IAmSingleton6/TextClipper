@@ -4,7 +4,7 @@ import KeyboardShortcuts
 import ServiceManagement
 import Testing
 
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct SettingsTests {
     @Test func `initial setup is offered only once across launches`() throws {
         let storage = try SettingsFixture()
@@ -77,7 +77,7 @@ struct SettingsTests {
     }
 }
 
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct PermissionManagerTests {
     @Test func `initial permission status does not request access`() {
         let permission = PermissionFixture()
@@ -134,7 +134,7 @@ struct PermissionManagerTests {
     }
 }
 
-@MainActor
+@Suite(.timeLimit(.minutes(1))) @MainActor
 struct LoginItemControllerTests {
     @Test func `launch at login is not enabled automatically`() {
         let service = TestLoginItem()

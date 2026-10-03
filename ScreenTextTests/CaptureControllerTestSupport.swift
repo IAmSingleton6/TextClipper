@@ -154,11 +154,11 @@ final class CaptureFixture {
     }
 
     func waitForResult() async throws {
-        try await self.resultDelivered.wait()
+        try await self.resultDelivered.wait(for: "capture result (controller state: \(self.state))")
     }
 
     func waitForProcessingToReturn() async throws {
-        try await self.processor.returned.wait()
+        try await self.processor.returned.wait(for: "capture processing to return")
     }
 
     private func record(_ event: CaptureEvent) {
@@ -259,11 +259,11 @@ final class TestCaptureProcessor: CaptureProcessing {
     }
 
     func waitUntilStarted() async throws {
-        try await self.started.wait()
+        try await self.started.wait(for: "capture processor to start")
     }
 
     func waitUntilReturned() async throws {
-        try await self.returned.wait()
+        try await self.returned.wait(for: "capture processor to return")
     }
 
     func finish(with outcome: Result<CaptureProcessingResult, Error> = .success(.noTextFound)) throws {

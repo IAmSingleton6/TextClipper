@@ -3,6 +3,7 @@ import Foundation
 @testable import ScreenText
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct ImageMaskerTests {
     @Test(arguments: [(100, 100), (160, 60), (60, 160), (101, 61)])
     func `masking clears corners while preserving interior pixels and the source image`(size: (Int, Int)) throws {

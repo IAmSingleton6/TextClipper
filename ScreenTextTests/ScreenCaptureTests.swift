@@ -3,6 +3,7 @@ import Foundation
 @testable import ScreenText
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct ImageCoordinatesTests {
     @Test(arguments: [
         (CGSize(width: 600, height: 400), CGRect(x: 20, y: 310, width: 100, height: 60)),
@@ -140,6 +141,7 @@ struct ImageCoordinatesTests {
     }
 }
 
+@Suite(.timeLimit(.minutes(1)))
 struct ScreenshotSizingTests {
     @Test(arguments: [
         (CGSize(width: 100, height: 100), CGSize(width: 125, height: 125)),

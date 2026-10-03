@@ -2,6 +2,7 @@ import AppKit
 @testable import ScreenText
 import Testing
 
+@Suite(.timeLimit(.minutes(1)))
 struct OCRTextProcessorTests {
     @Test(arguments: [false, true])
     func `text is ordered by rows and words despite unequal glyph heights`(reversed: Bool) {
@@ -43,7 +44,8 @@ struct OCRTextProcessorTests {
     }
 }
 
-@Suite(.timeLimit(.minutes(1))) @MainActor
+/// Vision requests share native model and compute resources.
+@Suite(.serialized, .timeLimit(.minutes(1))) @MainActor
 struct OCRServiceTests {
     @Test(arguments: [false, true])
     func `recognizes light and dark text images`(dark: Bool) async throws {

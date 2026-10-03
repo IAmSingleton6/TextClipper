@@ -59,6 +59,7 @@ extension DesktopTests {
     struct ClipboardProcessingTests {
         @Test func `native box selection recognizes text that can be pasted`() async throws {
             let clipboard = PasteboardFixture()
+            print("[ClipboardProcessingTests] Rendering OCR text fixture")
             let image = try TestImages.text(["Hello world", "Total: 42"])
             let selection = SelectionFixture(display: SelectionDisplay(
                 id: 99, frame: .init(x: -600, y: 400, width: 600, height: 400),
@@ -73,14 +74,17 @@ extension DesktopTests {
             )
 
             // GIVEN
+            print("[ClipboardProcessingTests] Presenting native selection")
             capture.start()
             try selection.press(at: .init(x: 300, y: 200))
             #expect(!capture.toolbarIsVisible)
 
             // WHEN
+            print("[ClipboardProcessingTests] Completing native selection")
             try selection.release(at: .init(x: 100, y: 50))
             #expect(selection.manager.window == nil)
             #expect(capture.state == .processing)
+            print("[ClipboardProcessingTests] Waiting for OCR and clipboard completion")
             try await capture.waitForResult()
 
             // THEN
@@ -204,6 +208,7 @@ private struct ImageCaptureFixture: ScreenCapturing {
         #expect(region.displayID == 99)
         #expect(region.rect == DisplayRect(x: 100, y: 50, width: 200, height: 150))
         #expect(region.shape == .rectangle)
+        print("[ClipboardProcessingTests] Capture fixture returned the image for Vision OCR")
         return self.image
     }
 }

@@ -19,12 +19,36 @@ final class TestSignal: Sendable {
         self.continuation.yield(())
     }
 
-    func wait() async throws {
-        var iterator = self.stream.makeAsyncIterator()
-        try #require(await iterator.next() != nil)
+    func wait(for context: String = "test signal", timeout: Duration = .seconds(10)) async throws {
+        try Task.checkCancellation()
+        let stream = self.stream
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            defer { group.cancelAll() }
+            group.addTask {
+                var iterator = stream.makeAsyncIterator()
+                let event: Void? = await iterator.next()
+                try Task.checkCancellation()
+                try #require(event != nil, "Signal ended while waiting for \(context)")
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw TestWaitError.timedOut(context)
+            }
+            try await group.next()
+        }
     }
 
     deinit { continuation.finish() }
+}
+
+enum TestWaitError: Error, Equatable, CustomStringConvertible {
+    case timedOut(String)
+
+    var description: String {
+        switch self {
+        case let .timedOut(context): "Timed out waiting for \(context)"
+        }
+    }
 }
 
 @MainActor
@@ -123,6 +147,8 @@ enum NativeMouse {
 @MainActor
 enum NativeWindow {
     static func waitUntilFocused(_ window: NSWindow) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
         let signal = TestSignal()
         let center = NotificationCenter.default
         let observers = [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification,
@@ -131,7 +157,10 @@ enum NativeWindow {
         }
         defer { observers.forEach(center.removeObserver) }
         while !window.isKeyWindow || !window.isMainWindow || !NSApp.isActive {
-            try await signal.wait()
+            try await signal.wait(
+                for: "window focus (key: \(window.isKeyWindow), main: \(window.isMainWindow), active: \(NSApp.isActive))",
+                timeout: clock.now.duration(to: deadline),
+            )
         }
     }
 }
@@ -188,7 +217,7 @@ actor SuspendedCaptureService: ScreenCapturing {
     }
 
     func waitUntilStarted() async throws {
-        try await self.started.wait()
+        try await self.started.wait(for: "screen capture to start")
     }
 
     func finish(_ result: Result<CGImage, Error>) throws {
@@ -216,7 +245,7 @@ actor SuspendedTextRecognizer: TextRecognizing {
     }
 
     func waitUntilStarted() async throws {
-        try await self.started.wait()
+        try await self.started.wait(for: "text recognition to start")
     }
 
     func finish(_ result: Result<String, Error>) throws {
