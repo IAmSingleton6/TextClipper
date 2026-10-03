@@ -130,8 +130,20 @@ final class SelectionViewFixture {
         try self.view.mouseUp(with: NativeMouse.event(.leftMouseUp, at: point))
     }
 
-    func renderedOverlay() throws -> NSBitmapImageRep {
-        let bitmap = try #require(self.view.bitmapImageRepForCachingDisplay(in: self.view.bounds))
+    func renderedOverlay(scale: CGFloat? = nil) throws -> NSBitmapImageRep {
+        let bitmap: NSBitmapImageRep
+        if let scale {
+            bitmap = try #require(NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: Int(self.view.bounds.width * scale),
+                pixelsHigh: Int(self.view.bounds.height * scale),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0,
+            ))
+            bitmap.size = self.view.bounds.size
+        } else {
+            bitmap = try #require(self.view.bitmapImageRepForCachingDisplay(in: self.view.bounds))
+        }
         self.view.cacheDisplay(in: self.view.bounds, to: bitmap)
         return bitmap
     }

@@ -66,13 +66,14 @@ jobs:
       - name: Install build-phase lint tool
         run: brew install swiftlint
       - name: Test
+        id: tests
         shell: bash
         timeout-minutes: 15
         run: |
           mkdir -p build
           ./Scripts/check.sh test -resultBundlePath build/TestResults.xcresult 2>&1 | tee build/test.log
       - name: Upload test results
-        if: always()
+        if: failure() && steps.tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: test-results

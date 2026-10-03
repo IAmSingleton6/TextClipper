@@ -28,7 +28,8 @@ extension DesktopTests {
             #expect(SelectionGeometry.freehand(points: points) != nil)
         }
 
-        @Test func `a horizontal first stroke is visible before it encloses an area`() throws {
+        @Test(arguments: [CGFloat(1), 1.25, 2])
+        func `a horizontal first stroke is visible before it encloses an area`(scale: CGFloat) throws {
             let drawing = SelectionViewFixture()
 
             // GIVEN
@@ -38,9 +39,18 @@ extension DesktopTests {
             try drawing.drag(to: .init(x: 90, y: 10))
 
             // THEN
-            let bitmap = try drawing.renderedOverlay()
-            let color = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh * 90 / 100))
-            #expect(color.alphaComponent > 0.8)
+            let bitmap = try drawing.renderedOverlay(scale: scale)
+            let x = bitmap.pixelsWide / 2
+            let y = bitmap.pixelsHigh * 90 / 100
+            let background = try #require(bitmap.colorAt(x: x, y: bitmap.pixelsHigh / 2))
+            // A one-point stroke can straddle pixels. Compare its coverage with
+            // the dimmed background instead of requiring one pixel's exact alpha.
+            let radius = Int(ceil(scale))
+            let strokeAlpha = try ((y - radius) ... (y + radius)).map { row in
+                try #require(bitmap.colorAt(x: x, y: row)).alphaComponent
+            }.max() ?? 0
+            #expect(abs(background.alphaComponent - 0.28) < 0.02)
+            #expect(strokeAlpha > background.alphaComponent + 0.4)
         }
 
         @Test func `releasing a line without enclosed area cancels and clears selection`() throws {
