@@ -22,6 +22,14 @@ Press **Escape** to cancel a selection or pending text recognition.
 
 Open **Settings…** from the menu bar to customize the shortcut, launch at login, captured-text preview, and Screen Recording permission.
 
+## Install from a GitHub Release
+
+ScreenText requires macOS 14 or later. Download the universal `.dmg` from [Releases](https://github.com/IAmSingleton6/TextClipper/releases), open it, and drag **ScreenText** into **Applications**. The same download supports Apple Silicon and Intel Macs.
+
+These releases do not have a Developer ID signature and are not notarized by Apple. macOS may block the first launch because it cannot verify the developer. After attempting to open ScreenText, open **System Settings → Privacy & Security → Open Anyway**, then confirm. See [Apple's instructions](https://support.apple.com/en-us/102445).
+
+Grant **Screen Recording** permission when prompted, and restart ScreenText if required.
+
 ## Build from source
 
 ### Requirements

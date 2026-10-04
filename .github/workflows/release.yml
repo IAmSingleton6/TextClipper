@@ -30,17 +30,11 @@ jobs:
           persist-credentials: false
       - name: Install build-phase lint tool
         run: brew install swiftlint
-      - name: Build signed app and notarized DMG
+      - name: Build universal app and unnotarized DMG
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
-          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
-          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: ./Scripts/release.sh
+        run: ./Scripts/release-unsigned.sh
       - name: Upload release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
