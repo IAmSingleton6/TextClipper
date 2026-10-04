@@ -102,9 +102,8 @@ private struct AccurateOCRConnection: Sendable {
         self.stopped.withLock { stopped in
             guard !stopped else { return }
             stopped = true
-            if self.process.isRunning {
-                self.process.terminate()
-            }
+            // Let active Vision work release its native cache locks before the helper exits.
+            // Closing the pipes ends its input loop or prevents delivery of a cancelled result.
             try? self.writer.close()
             try? self.reader.close()
         }

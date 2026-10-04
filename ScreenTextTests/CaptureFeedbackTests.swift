@@ -119,7 +119,8 @@ struct CaptureFeedbackTests {
         capture.beginSelection()
         capture.completeSelection()
         try await feedback.notifications.waitUntilShown()
-        #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
+        // The timeout can replace the message before this waiter resumes.
+        #expect(feedback.notifications.messages.first == "Reading text… Press Escape to cancel")
 
         try await capture.waitForResult()
         #expect(capture.isIdle)
