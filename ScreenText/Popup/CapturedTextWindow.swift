@@ -25,7 +25,7 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
         level = .floating
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        ignoresMouseEvents = true
+        ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
         appearance = NSAppearance(named: .darkAqua)
@@ -43,7 +43,11 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
         self.hide()
 
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        contentView = NSHostingView(rootView: CapturedTextView(text: text))
+        contentView = CapturedTextHostingView(rootView: CapturedTextView(
+            text: text,
+            maximumWidth: max(1, display.visibleFrame.width - 32),
+            onDismiss: { [weak self] in self?.hide() },
+        ))
 
         self.position(on: display)
         showFeedback()
@@ -81,4 +85,10 @@ final class CapturedTextWindow: NSPanel, CapturedTextPresenting {
     }
 
     deinit { dismissalTask?.cancel() }
+}
+
+private final class CapturedTextHostingView: NSHostingView<CapturedTextView> {
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
 }

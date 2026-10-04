@@ -1,5 +1,6 @@
 import AppKit
 @testable import ScreenText
+import SwiftUI
 import Testing
 
 @Suite(.timeLimit(.minutes(1))) @MainActor
@@ -351,10 +352,69 @@ extension DesktopTests {
             #expect(popup.isVisible)
             #expect(!popup.canBecomeKey)
             #expect(!popup.canBecomeMain)
-            #expect(popup.ignoresMouseEvents)
-            #expect(popup.frame.width == 320)
+            #expect(!popup.ignoresMouseEvents)
+            #expect(popup.frame.width == 640)
             #expect(popup.frame.height > 32 && popup.frame.height < 150)
             #expect(abs(popup.frame.midX - testDisplay.visibleFrame.midX) < 1)
+            #expect(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus)
+            #expect(NSPasteboard.general.changeCount == clipboard)
+        }
+
+        @Test func `preview grows to fit its widest line and resets for short text`() {
+            let popup = CapturedTextWindow()
+            defer { popup.hide() }
+            let line = "A captured line of text that needs a wider preview to fit."
+
+            // WHEN
+            popup.show(line, on: testDisplay)
+            let lineWidth = popup.frame.width
+            let lineHeight = popup.frame.height
+            popup.show("Short\n\(line)\nAnother short line", on: testDisplay)
+
+            // THEN
+            #expect(lineWidth > 320 && lineWidth < 640)
+            #expect(popup.frame.width == lineWidth)
+            #expect(lineHeight < 60)
+            #expect(abs(popup.frame.midX - testDisplay.visibleFrame.midX) < 1)
+
+            // WHEN
+            popup.show("Hello", on: testDisplay)
+
+            // THEN
+            #expect(popup.frame.width == 320)
+        }
+
+        @Test func `preview width stays within a narrow display`() {
+            let popup = CapturedTextWindow()
+            defer { popup.hide() }
+            let display = SelectionDisplay(
+                id: 7, frame: .init(x: -280, y: 0, width: 280, height: 400),
+                visibleFrame: .init(x: -280, y: 0, width: 280, height: 400),
+            )
+
+            // WHEN
+            popup.show(String(repeating: "Wide text ", count: 100), on: display)
+
+            // THEN
+            #expect(popup.frame.width == 248)
+            #expect(display.visibleFrame.appKitGlobalRect.contains(popup.frame))
+        }
+
+        @Test func `dismiss action closes the preview without changing focus or clipboard`() throws {
+            let popup = CapturedTextWindow()
+            defer { popup.hide() }
+            popup.show("Hello", on: testDisplay)
+            let view = try #require(popup.contentView as? NSHostingView<CapturedTextView>)
+            #expect(view.acceptsFirstMouse(for: nil))
+            let focus = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let clipboard = NSPasteboard.general.changeCount
+
+            // WHEN
+            view.rootView.onDismiss()
+
+            // THEN
+            #expect(!popup.isVisible)
+            #expect(popup.contentView == nil)
             #expect(NSWorkspace.shared.frontmostApplication?.processIdentifier == focus)
             #expect(NSPasteboard.general.changeCount == clipboard)
         }
