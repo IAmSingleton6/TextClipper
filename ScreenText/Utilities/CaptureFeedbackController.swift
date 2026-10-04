@@ -5,18 +5,22 @@ final class CaptureFeedbackController {
     private let settings: SettingsStore
     private let popup: any CapturedTextPresenting
     private let notifications: any NotificationPresenting
+    private let processingFeedbackDelay: Duration
     private let onPermissionRequired: () -> Void
     private var display: SelectionDisplay?
+    private var processingFeedbackTask: Task<Void, Never>?
 
     init(
         settings: SettingsStore = SettingsStore(persistence: SettingsPersistence(defaults: .standard)),
         popup: any CapturedTextPresenting = CapturedTextWindow(),
         notifications: any NotificationPresenting = NotificationService(),
+        processingFeedbackDelay: Duration = .milliseconds(500),
         onPermissionRequired: @escaping () -> Void,
     ) {
         self.settings = settings
         self.popup = popup
         self.notifications = notifications
+        self.processingFeedbackDelay = processingFeedbackDelay
         self.onPermissionRequired = onPermissionRequired
     }
 
@@ -26,14 +30,22 @@ final class CaptureFeedbackController {
     }
 
     func onProcessingChanged(_ isProcessing: Bool) {
+        self.cancelProcessingFeedback()
         if isProcessing {
-            self.notifications.show("Reading text… Press Escape to cancel", on: self.display, dismissAfter: nil)
+            let delay = self.processingFeedbackDelay
+            self.processingFeedbackTask = Task { [weak self] in
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled, let self else { return }
+
+                self.notifications.show("Reading text… Press Escape to cancel", on: self.display, dismissAfter: nil)
+            }
         } else {
             self.notifications.hide()
         }
     }
 
     func onCopiedText(_ text: String) {
+        self.cancelProcessingFeedback()
         guard
             self.settings.showCapturedText,
             let display,
@@ -47,6 +59,7 @@ final class CaptureFeedbackController {
     }
 
     func onNoTextFound() {
+        self.cancelProcessingFeedback()
         self.popup.hide()
         self.notifications.show("No text found", on: self.display)
     }
@@ -65,6 +78,8 @@ final class CaptureFeedbackController {
 
     private func errorMessage(for error: Error) -> String {
         switch error {
+        case CaptureError.timedOut:
+            "Text recognition timed out. Try again."
         case is ClipboardError:
             "Could not copy text to the clipboard"
         case is OCRError:
@@ -77,7 +92,15 @@ final class CaptureFeedbackController {
     }
 
     func hide() {
+        self.cancelProcessingFeedback()
         self.popup.hide()
         self.notifications.hide()
     }
+
+    private func cancelProcessingFeedback() {
+        self.processingFeedbackTask?.cancel()
+        self.processingFeedbackTask = nil
+    }
+
+    deinit { processingFeedbackTask?.cancel() }
 }

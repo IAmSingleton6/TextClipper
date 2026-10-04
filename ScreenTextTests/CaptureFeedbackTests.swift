@@ -5,7 +5,9 @@ import Testing
 @Suite(.timeLimit(.minutes(1))) @MainActor
 struct CaptureFeedbackTests {
     @Test(arguments: [false, true])
-    func `pending capture feedback persists even when text previews are disabled`(showCapturedText: Bool) throws {
+    func `slow capture feedback appears after a delay even when previews are disabled`(
+        showCapturedText: Bool,
+    ) async throws {
         let feedback = try FeedbackFixture(showCapturedText: showCapturedText)
 
         // GIVEN
@@ -13,6 +15,8 @@ struct CaptureFeedbackTests {
 
         // WHEN
         feedback.processingChanged(true)
+        #expect(feedback.notifications.message == nil)
+        try await feedback.notifications.waitUntilShown()
 
         // THEN
         #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
@@ -41,6 +45,7 @@ struct CaptureFeedbackTests {
         capture.beginSelection()
         capture.completeSelection()
         try await processor.waitUntilStarted()
+        try await feedback.notifications.waitUntilShown()
         #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
         capture.toggle()
         #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
@@ -56,6 +61,78 @@ struct CaptureFeedbackTests {
         #expect(capture.isIdle)
         #expect(feedback.notifications.message == outcome.message)
         #expect(feedback.popup.text == (outcome == .text ? "Hello" : nil))
+    }
+
+    @Test(arguments: [PendingCaptureOutcome.text, .noText, .failure, .cancelled])
+    private func `quick captures never show processing feedback`(outcome: PendingCaptureOutcome) async throws {
+        let feedback = try FeedbackFixture()
+        feedback.beginCapture()
+        feedback.processingChanged(true)
+
+        feedback.processingChanged(false)
+        switch outcome {
+        case .text: feedback.copiedText("Hello")
+        case .noText: feedback.noTextFound()
+        case .failure: feedback.fail(OCRError.recognitionFailed)
+        case .cancelled: break
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(feedback.notifications.messages == outcome.message.map { [$0] } ?? [])
+        #expect(feedback.notifications.message == outcome.message)
+        #expect(feedback.popup.text == (outcome == .text ? "Hello" : nil))
+    }
+
+    @Test(arguments: [false, true])
+    func `hiding feedback or starting a new capture cancels the pending message`(startsNewCapture: Bool) async throws {
+        let feedback = try FeedbackFixture()
+        feedback.beginCapture()
+        feedback.processingChanged(true)
+
+        if startsNewCapture {
+            feedback.beginCapture(on: SelectionDisplay(
+                id: 7, frame: testDisplay.frame, visibleFrame: testDisplay.visibleFrame,
+            ))
+        } else {
+            feedback.hide()
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(feedback.notifications.messages.isEmpty)
+        #expect(feedback.notifications.message == nil)
+        #expect(feedback.popup.text == nil)
+    }
+
+    @Test func `timed out captures replace processing feedback and allow another capture`() async throws {
+        let feedback = try FeedbackFixture(processingFeedbackDelay: .zero)
+        let processor = TestCaptureProcessor(suspends: true)
+        let capture = CaptureFixture(processor: processor, processingTimeout: .milliseconds(100), onEvent: { _, event in
+            switch event {
+            case let .started(display): feedback.beginCapture(on: display)
+            case let .processingChanged(processing): feedback.processingChanged(processing)
+            case let .failed(error): feedback.fail(error)
+            default: break
+            }
+        })
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await feedback.notifications.waitUntilShown()
+        #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
+
+        try await capture.waitForResult()
+        #expect(capture.isIdle)
+        #expect(!capture.escape.isListening)
+        #expect(feedback.notifications.message == "Text recognition timed out. Try again.")
+        #expect(feedback.notifications.dismissAfter == .seconds(3))
+
+        capture.start()
+        try processor.finish(with: .success(.textCopied("Late text")))
+        try await capture.waitForProcessingToReturn()
+        #expect(capture.state == .toolbar)
+        #expect(capture.results.count == 1)
+        #expect(feedback.notifications.message == nil)
+        #expect(feedback.popup.text == nil)
     }
 
     @Test func `copied text is suppressed when previews are disabled`() throws {
@@ -119,6 +196,7 @@ struct CaptureFeedbackTests {
     @Test(arguments: [
         (FeedbackFailure.clipboard, "Could not copy text to the clipboard"),
         (.ocr, "Could not read selected text"),
+        (.timeout, "Text recognition timed out. Try again."),
         (.missingDisplay, "Display is no longer available"),
         (.capture, "Could not capture selection"),
         (.invalidRegion, "Could not capture selection"),
@@ -311,14 +389,17 @@ private final class FeedbackFixture {
     let popup = TestTextPopup()
     let notifications = TestNotifications()
     private(set) var permissionRequests = 0
+    private let processingFeedbackDelay: Duration
     private lazy var controller = CaptureFeedbackController(
         settings: self.storage.settings, popup: self.popup, notifications: self.notifications,
+        processingFeedbackDelay: self.processingFeedbackDelay,
         onPermissionRequired: { [weak self] in self?.permissionRequests += 1 },
     )
 
-    init(showCapturedText: Bool = true) throws {
+    init(showCapturedText: Bool = true, processingFeedbackDelay: Duration = .milliseconds(50)) throws {
         self.storage = try SettingsFixture()
         self.storage.settings.showCapturedText = showCapturedText
+        self.processingFeedbackDelay = processingFeedbackDelay
     }
 
     func beginCapture(on display: SelectionDisplay = testDisplay) {
@@ -365,24 +446,33 @@ private final class TestNotifications: NotificationPresenting {
     var message: String?
     var display: SelectionDisplay?
     var dismissAfter: Duration?
+    private(set) var messages: [String] = []
+    private let shown = TestSignal()
     func show(_ message: String, on display: SelectionDisplay?, dismissAfter: Duration?) {
         self.message = message
         self.display = display
         self.dismissAfter = dismissAfter
+        self.messages.append(message)
+        self.shown.signal()
     }
 
     func hide() {
         self.message = nil
     }
+
+    func waitUntilShown() async throws {
+        try await self.shown.wait(for: "capture notification to appear")
+    }
 }
 
 private enum FeedbackFailure {
-    case clipboard, ocr, missingDisplay, capture, invalidRegion, unknown
+    case clipboard, ocr, timeout, missingDisplay, capture, invalidRegion, unknown
     enum Unknown: Error { case failure }
     var error: Error {
         switch self {
         case .clipboard: ClipboardError.writeFailed
         case .ocr: OCRError.recognitionFailed
+        case .timeout: CaptureError.timedOut
         case .missingDisplay: ScreenCaptureError.displayNotFound
         case .capture: ScreenCaptureError.captureFailed
         case .invalidRegion: ScreenCaptureError.invalidRegion

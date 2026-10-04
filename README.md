@@ -16,7 +16,7 @@ Select an area, and ScreenText uses Apple's Vision framework to recognize the te
 
 The recognized text is copied to your clipboard automatically.
 
-ScreenText is ready to capture immediately at launch. It uses fast text recognition while preparing its more accurate recognizer in the background, then switches automatically when preparation finishes. Early captures may be less accurate and support fewer languages. ScreenText shows **Reading text…** during each capture. Pressing the capture shortcut again during processing keeps the pending capture running.
+ScreenText is ready to capture immediately at launch. It uses fast text recognition while preparing its more accurate recognizer in the background, then switches automatically when preparation finishes. Early captures may be less accurate and support fewer languages. For captures taking longer than half a second, ScreenText shows **Reading text… Press Escape to cancel**. Captures still pending after 15 seconds are cancelled with a timeout message so you can try again. Pressing the capture shortcut again during processing keeps the pending capture running.
 
 Press **Escape** to cancel a selection or pending text recognition.
 

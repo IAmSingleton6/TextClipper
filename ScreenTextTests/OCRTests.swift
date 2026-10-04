@@ -2,6 +2,7 @@ import AppKit
 import os
 @testable import ScreenText
 import Testing
+import Vision
 
 @Suite(.timeLimit(.minutes(1)))
 struct OCRTextProcessorTests {
@@ -46,6 +47,19 @@ struct OCRTextProcessorTests {
 }
 
 extension DesktopTests {
+    @MainActor
+    struct VisionOCRTests {
+        @Test func `fast recognition remains usable after cancellation`() async throws {
+            let recognizer = VisionOCR(level: .fast)
+            let image = try TestImages.text(["Hello world"])
+            let task = Task { try await recognizer.recognizeText(from: image) }
+            task.cancel()
+
+            await #expect(throws: CancellationError.self) { try await task.value }
+            #expect(try await recognizer.recognizeText(from: image) == "Hello world")
+        }
+    }
+
     /// Native OCR workers initialize CoreText and WindowServer resources used by desktop tests.
     @MainActor
     struct OCRServiceTests {
@@ -190,6 +204,35 @@ extension DesktopTests {
 
 @Suite(.timeLimit(.minutes(1))) @MainActor
 struct OCRProcessingTests {
+    @Test(arguments: [false, true])
+    func `timed out OCR cannot write late text to the clipboard`(fails: Bool) async throws {
+        let recognizer = SuspendedTextRecognizer()
+        let clipboard = TestClipboardWriter()
+        let capture = CaptureFixture(
+            ocrService: recognizer, clipboardService: clipboard, processingTimeout: .milliseconds(50),
+        )
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await recognizer.waitUntilStarted()
+
+        try await capture.waitForResult()
+        guard case let .failed(error) = try #require(capture.results.first) else {
+            Issue.record("Stalled OCR should report a timeout")
+            return
+        }
+        #expect(error as? CaptureError == .timedOut)
+
+        capture.start()
+        try await recognizer.finish(fails ? .failure(OCRError.recognitionFailed) : .success("Late result"))
+        try await capture.waitForProcessingToReturn()
+
+        #expect(capture.state == .toolbar)
+        #expect(capture.results.count == 1)
+        #expect(clipboard.attempts.isEmpty)
+        #expect(clipboard.texts.isEmpty)
+    }
+
     @Test(arguments: [false, true])
     func `cancelled OCR cannot deliver text or errors into a new capture session`(fails: Bool) async throws {
         let recognizer = SuspendedTextRecognizer()

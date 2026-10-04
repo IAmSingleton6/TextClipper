@@ -3,7 +3,8 @@ import Vision
 
 /// Synchronous Vision recognition shared by the app and its helper process.
 /// Reuses a mutable request; callers must serialize access through an actor or a sequential loop.
-struct VisionOCREngine {
+/// Only cancellation may run concurrently, using Vision's request cancellation API.
+struct VisionOCREngine: @unchecked Sendable {
     private let request: VNRecognizeTextRequest
 
     init(level: VNRequestTextRecognitionLevel) {
@@ -34,5 +35,9 @@ struct VisionOCREngine {
         }
 
         return OCRTextProcessor().text(from: blocks)
+    }
+
+    func cancel() {
+        self.request.cancel()
     }
 }

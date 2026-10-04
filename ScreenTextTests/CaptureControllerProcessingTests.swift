@@ -3,6 +3,68 @@ import Testing
 
 @MainActor
 extension CaptureControllerTests {
+    @Test(arguments: ProcessingOutcome.allCases)
+    private func `timeout cancels stalled processing and rejects its late result`(
+        outcome: ProcessingOutcome,
+    ) async throws {
+        let processor = TestCaptureProcessor(suspends: true)
+        let capture = CaptureFixture(
+            processor: processor,
+            processingTimeout: .milliseconds(50),
+            onEvent: { capture, event in
+                if case .failed = event {
+                    #expect(capture.isIdle)
+                    #expect(!capture.escape.isListening)
+                    #expect(capture.processingChanges == [true, false])
+                }
+            },
+        )
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await processor.waitUntilStarted()
+
+        try await capture.waitForResult()
+        guard case let .failed(error) = try #require(capture.results.first) else {
+            Issue.record("Stalled processing should report a timeout")
+            return
+        }
+        #expect(error as? CaptureError == .timedOut)
+
+        capture.start()
+        try processor.finish(with: outcome.result)
+        try await processor.waitUntilReturned()
+        #expect(processor.returnedWhileCancelled == [true])
+        #expect(capture.state == .toolbar)
+        #expect(capture.results.count == 1)
+        #expect(capture.activityChanges == [true, false, true])
+    }
+
+    @Test(arguments: [false, true])
+    func `finished or cancelled captures cannot time out a new session`(cancelled: Bool) async throws {
+        let processor = TestCaptureProcessor(suspends: cancelled)
+        let capture = CaptureFixture(processor: processor, processingTimeout: .milliseconds(50))
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        if cancelled {
+            try await processor.waitUntilStarted()
+            capture.cancel()
+            try processor.finish()
+            try await capture.waitForProcessingToReturn()
+        } else {
+            try await capture.waitForResult()
+        }
+
+        capture.start()
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(capture.state == .toolbar)
+        #expect(capture.escape.isListening)
+        #expect(capture.results.count == (cancelled ? 0 : 1))
+        #expect(capture.processingChanges == [true, false])
+    }
+
     @Test(arguments: [boxSelection, freehandSelection])
     func `completed selections reach the processor unchanged`(selection: Selection) async throws {
         let processor = TestCaptureProcessor()

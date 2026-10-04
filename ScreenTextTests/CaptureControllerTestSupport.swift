@@ -15,6 +15,7 @@ final class CaptureFixture {
     private let captureService: any ScreenCapturing
     private let ocrService: any TextRecognizing
     private let processor: ObservedCaptureProcessor
+    private let processingTimeout: Duration
     private let onEvent: ((CaptureFixture, CaptureEvent) -> Void)?
     private let resultDelivered = TestSignal()
     private lazy var controller = CaptureController(
@@ -28,6 +29,7 @@ final class CaptureFixture {
         selectionManager: self.selectionManager,
         displayProvider: { [weak self] in self?.display },
         escapeMonitor: self.escape,
+        processingTimeout: self.processingTimeout,
         onEvent: { [weak self] in self?.record($0) },
     )
 
@@ -43,6 +45,7 @@ final class CaptureFixture {
         ocrService: any TextRecognizing = TestTextRecognizer(),
         clipboardService: any ClipboardWriting = TestClipboardWriter(),
         processor: (any CaptureProcessing)? = nil,
+        processingTimeout: Duration = .seconds(15),
         onEvent: ((CaptureFixture, CaptureEvent) -> Void)? = nil,
     ) {
         self.savedMode = settings?.lastSelectionMode ?? initialMode
@@ -60,6 +63,7 @@ final class CaptureFixture {
             clipboardService: clipboardService,
         ))
         self.onEvent = onEvent
+        self.processingTimeout = processingTimeout
     }
 
     var state: CaptureState {

@@ -17,6 +17,10 @@ enum CaptureEvent {
     case failed(Error)
 }
 
+enum CaptureError: Error, Equatable {
+    case timedOut
+}
+
 @MainActor
 final class CaptureController {
     private(set) var state: CaptureState = .idle
@@ -29,9 +33,11 @@ final class CaptureController {
     private let modeProvider: () -> CaptureMode
     private let saveMode: (CaptureMode) -> Void
     private let displayProvider: () -> SelectionDisplay?
+    private let processingTimeout: Duration
     private let onEvent: ((CaptureEvent) -> Void)?
 
     private var processingTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
     private var sessionID = UUID()
 
     var isActive: Bool {
@@ -46,6 +52,7 @@ final class CaptureController {
         selectionManager: any SelectionManaging = SelectionManager(),
         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
         escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
+        processingTimeout: Duration = .seconds(15),
         onEvent: ((CaptureEvent) -> Void)? = nil,
     ) {
         self.selectedMode = modeProvider()
@@ -54,6 +61,7 @@ final class CaptureController {
         self.toolbar = toolbar
         self.selectionManager = selectionManager
         self.displayProvider = displayProvider
+        self.processingTimeout = processingTimeout
         self.modeProvider = modeProvider
         self.saveMode = saveMode
         self.onEvent = onEvent
@@ -150,6 +158,8 @@ final class CaptureController {
         self.sessionID = UUID()
         self.processingTask?.cancel()
         self.processingTask = nil
+        self.timeoutTask?.cancel()
+        self.timeoutTask = nil
         self.escapeMonitor.stop()
         self.hideSelectionUI()
         self.state = .idle
@@ -202,10 +212,20 @@ final class CaptureController {
                 self.onEvent?(.failed(error))
             }
         }
+
+        let timeout = self.processingTimeout
+        self.timeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: timeout)
+            guard !Task.isCancelled, let self, sessionID == id, state == .processing else { return }
+
+            self.cancel()
+            self.onEvent?(.failed(CaptureError.timedOut))
+        }
     }
 
     isolated deinit {
         escapeMonitor.stop()
         processingTask?.cancel()
+        timeoutTask?.cancel()
     }
 }
