@@ -2,12 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Only stable three-component versions are published by this workflow.
-if [[ ! "${RELEASE_TAG:-}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-  echo 'Release tags must be vMAJOR.MINOR.PATCH (for example v0.1.0).' >&2
+# Allow stable releases and prereleases such as v0.1.0-test or v0.1.0-rc.1.
+if [[ ! "${RELEASE_TAG:-}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+  echo 'Release tags must be vMAJOR.MINOR.PATCH with an optional prerelease suffix (for example v0.1.0 or v0.1.0-test).' >&2
   exit 1
 fi
-version="${RELEASE_TAG#v}"
+# macOS requires a numeric app version; keep the suffix in the DMG name/label.
+version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+display_version="${RELEASE_TAG#v}"
 for name in DEVELOPER_ID_CERTIFICATE_BASE64 DEVELOPER_ID_CERTIFICATE_PASSWORD \
   DEVELOPER_ID_APPLICATION APPLE_TEAM_ID APPLE_ID APPLE_APP_SPECIFIC_PASSWORD RELEASE_BUILD_NUMBER; do
   if [[ -z "${!name:-}" ]]; then
@@ -75,7 +77,7 @@ mkdir -p dist "$work/dmg"
 ditto "$app" "$work/dmg/ScreenText.app"
 ln -s /Applications "$work/dmg/Applications"
 dmg="dist/ScreenText-${RELEASE_TAG}-universal.dmg"
-hdiutil create -volname "ScreenText $version" -srcfolder "$work/dmg" \
+hdiutil create -volname "ScreenText $display_version" -srcfolder "$work/dmg" \
   -ov -format UDZO "$dmg"
 codesign --sign "$DEVELOPER_ID_APPLICATION" --keychain "$keychain" --timestamp "$dmg"
 codesign --verify --strict --verbose=2 "$dmg"
