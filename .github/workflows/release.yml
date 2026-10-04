@@ -1,14 +1,14 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
 jobs:
@@ -26,12 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ github.event.release.tag_name }}
           persist-credentials: false
       - name: Install build-phase lint tool
         run: brew install swiftlint
       - name: Build signed app and notarized DMG
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
           DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
           DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
@@ -40,11 +41,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: ./Scripts/release.sh
-      - name: Publish GitHub release
+      - name: Upload release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          gh release create "$RELEASE_TAG" dist/*.dmg dist/SHA256SUMS \
-            --verify-tag --title "ScreenText $RELEASE_TAG" --generate-notes
+          gh release upload "$RELEASE_TAG" dist/*.dmg dist/SHA256SUMS --clobber
