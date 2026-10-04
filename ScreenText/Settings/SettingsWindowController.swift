@@ -53,7 +53,13 @@ final class SettingsWindowController: NSWindowController {
             window.deminiaturize(nil)
         }
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        if let foreground = NSWorkspace.shared.frontmostApplication,
+           foreground.processIdentifier != ProcessInfo.processInfo.processIdentifier
+        {
+            _ = NSRunningApplication.current.activate(from: foreground, options: [])
+        } else {
+            NSApp.activate()
+        }
         window.orderFrontRegardless()
     }
 

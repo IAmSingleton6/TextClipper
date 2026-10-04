@@ -14,6 +14,7 @@ extension DesktopTests {
             // WHEN
             try selection.start()
             try await selection.waitUntilFocused()
+            try await self.waitForCursor(.crosshair)
 
             // THEN
             let window = try selection.window
@@ -89,7 +90,7 @@ extension DesktopTests {
             // WHEN
             NSCursor.arrow.set()
             // Native integration: the private AppKit timer has no controllable tick API.
-            try await Task.sleep(for: .milliseconds(50))
+            try await self.waitForCursor(.crosshair)
 
             // THEN
             #expect(NSCursor.current == .crosshair)
@@ -101,12 +102,13 @@ extension DesktopTests {
             // GIVEN
             try selection.start()
             try await selection.waitUntilFocused()
-            selection.manager.setCursorExclusionRect(self.rectAroundPointer())
+            // Cover the desktop so moving the real pointer cannot leave the exclusion.
+            try selection.manager.setCursorExclusionRect(self.desktopCursorExclusionRect())
             NSCursor.crosshair.set()
 
             // WHEN
             // Native integration: observe the real cursor-maintenance timer.
-            try await Task.sleep(for: .milliseconds(50))
+            try await self.waitForCursor(.arrow)
 
             // THEN
             #expect(NSCursor.current == .arrow)
@@ -118,7 +120,7 @@ extension DesktopTests {
             // GIVEN
             try selection.start()
             try await selection.waitUntilFocused()
-            selection.manager.setCursorExclusionRect(self.rectAroundPointer())
+            try selection.manager.setCursorExclusionRect(self.desktopCursorExclusionRect())
             #expect(NSCursor.current == .arrow)
 
             // WHEN
@@ -340,9 +342,21 @@ extension DesktopTests {
             #expect(drawing.view.selectionRect == nil)
         }
 
-        private func rectAroundPointer() -> ScreenRect {
-            let point = NSEvent.mouseLocation
-            return ScreenRect(x: point.x - 10, y: point.y - 10, width: 20, height: 20)
+        private func desktopCursorExclusionRect() throws -> ScreenRect {
+            let frame = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+            try #require(!frame.isNull, "Cursor tests require a desktop display")
+            return ScreenRect(appKitGlobalRect: frame)
+        }
+
+        private func waitForCursor(_ cursor: NSCursor) async throws {
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: .seconds(1))
+            while NSCursor.current != cursor {
+                guard clock.now < deadline else {
+                    throw TestWaitError.timedOut("selection cursor maintenance")
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
         }
     }
 }
