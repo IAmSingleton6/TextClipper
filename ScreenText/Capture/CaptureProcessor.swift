@@ -15,9 +15,9 @@ struct CaptureProcessor: CaptureProcessing {
     private let clipboardService: any ClipboardWriting
 
     init(
-        captureService: any ScreenCapturing = ScreenCaptureService(),
-        ocrService: any TextRecognizing = OCRService(),
-        clipboardService: any ClipboardWriting = ClipboardService(),
+        captureService: any ScreenCapturing,
+        ocrService: any TextRecognizing,
+        clipboardService: any ClipboardWriting,
     ) {
         self.captureService = captureService
         self.ocrService = ocrService

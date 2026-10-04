@@ -1,10 +1,8 @@
-import CoreGraphics
 import Foundation
 
 struct RecognizedTextBlock: Sendable {
     let text: String
-    /// Vision-normalized coordinates, with a bottom-left origin.
-    let bounds: CGRect
+    let bounds: VisionNormalizedRect
 }
 
 struct OCRTextProcessor {

@@ -8,6 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		B00000000000000000000001 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000002 /* KeyboardShortcuts */; };
+		D00000000000000000000002 /* AccurateOCRHelper in Embed OCR helper */ = {isa = PBXBuildFile; fileRef = D00000000000000000000003 /* AccurateOCRHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D00000000000000000000020 /* AccurateOCRHelper/main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000010 /* AccurateOCRHelper/main.swift */; };
+		D00000000000000000000021 /* ScreenText/OCR/Shared/OCRError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000012 /* ScreenText/OCR/Shared/OCRError.swift */; };
+		D00000000000000000000022 /* ScreenText/OCR/Shared/VisionOCREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000013 /* ScreenText/OCR/Shared/VisionOCREngine.swift */; };
+		D00000000000000000000023 /* ScreenText/OCR/Shared/OCRTextProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000014 /* ScreenText/OCR/Shared/OCRTextProcessor.swift */; };
+		D00000000000000000000024 /* AccurateOCRHelper/OCRPreparationImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000015 /* AccurateOCRHelper/OCRPreparationImage.swift */; };
+		D00000000000000000000025 /* ScreenText/OCR/Shared/AccurateOCRProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000016 /* ScreenText/OCR/Shared/AccurateOCRProtocol.swift */; };
+		D00000000000000000000028 /* ScreenText/Coordinates/CoordinateSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000027 /* ScreenText/Coordinates/CoordinateSpaces.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,11 +26,41 @@
 			remoteGlobalIDString = A00000000000000000000007;
 			remoteInfo = ScreenText;
 		};
+		D00000000000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D00000000000000000000004;
+			remoteInfo = AccurateOCRHelper;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D00000000000000000000001 /* Embed OCR helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				D00000000000000000000002 /* AccurateOCRHelper in Embed OCR helper */,
+			);
+			name = "Embed OCR helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A00000000000000000000001 /* ScreenText.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScreenText.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000001 /* ScreenTextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScreenTextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D00000000000000000000003 /* AccurateOCRHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AccurateOCRHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		D00000000000000000000010 /* AccurateOCRHelper/main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccurateOCRHelper/main.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000011 /* AccurateOCRHelper/AccurateOCRHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AccurateOCRHelper/AccurateOCRHelper.entitlements; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000012 /* ScreenText/OCR/Shared/OCRError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText/OCR/Shared/OCRError.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000013 /* ScreenText/OCR/Shared/VisionOCREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText/OCR/Shared/VisionOCREngine.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000014 /* ScreenText/OCR/Shared/OCRTextProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText/OCR/Shared/OCRTextProcessor.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000015 /* AccurateOCRHelper/OCRPreparationImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccurateOCRHelper/OCRPreparationImage.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000016 /* ScreenText/OCR/Shared/AccurateOCRProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText/OCR/Shared/AccurateOCRProtocol.swift; sourceTree = SOURCE_ROOT; };
+		D00000000000000000000027 /* ScreenText/Coordinates/CoordinateSpaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText/Coordinates/CoordinateSpaces.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -67,6 +105,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D00000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -75,6 +120,7 @@
 			children = (
 				A00000000000000000000002 /* ScreenText */,
 				C00000000000000000000002 /* ScreenTextTests */,
+				D00000000000000000000007 /* AccurateOCRHelper */,
 				A00000000000000000000005 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -84,8 +130,32 @@
 			children = (
 				A00000000000000000000001 /* ScreenText.app */,
 				C00000000000000000000001 /* ScreenTextTests.xctest */,
+				D00000000000000000000003 /* AccurateOCRHelper */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D00000000000000000000007 /* AccurateOCRHelper */ = {
+			isa = PBXGroup;
+			children = (
+				D00000000000000000000010 /* AccurateOCRHelper/main.swift */,
+				D00000000000000000000015 /* AccurateOCRHelper/OCRPreparationImage.swift */,
+				D00000000000000000000011 /* AccurateOCRHelper/AccurateOCRHelper.entitlements */,
+				D00000000000000000000026 /* Shared OCR sources */,
+			);
+			name = AccurateOCRHelper;
+			sourceTree = "<group>";
+		};
+		D00000000000000000000026 /* Shared OCR sources */ = {
+			isa = PBXGroup;
+			children = (
+				D00000000000000000000012 /* ScreenText/OCR/Shared/OCRError.swift */,
+				D00000000000000000000013 /* ScreenText/OCR/Shared/VisionOCREngine.swift */,
+				D00000000000000000000014 /* ScreenText/OCR/Shared/OCRTextProcessor.swift */,
+				D00000000000000000000016 /* ScreenText/OCR/Shared/AccurateOCRProtocol.swift */,
+				D00000000000000000000027 /* ScreenText/Coordinates/CoordinateSpaces.swift */,
+			);
+			name = "Shared OCR sources";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -99,10 +169,12 @@
 				A00000000000000000000009 /* Frameworks */,
 				A0000000000000000000000A /* Resources */,
 				2F6E11493069420200BDE42D /* ShellScript */,
+				D00000000000000000000001 /* Embed OCR helper */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D00000000000000000000008 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A00000000000000000000002 /* ScreenText */,
@@ -138,6 +210,22 @@
 			productReference = C00000000000000000000001 /* ScreenTextTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		D00000000000000000000004 /* AccurateOCRHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D0000000000000000000000C /* Build configuration list for PBXNativeTarget "AccurateOCRHelper" */;
+			buildPhases = (
+				D00000000000000000000005 /* Sources */,
+				D00000000000000000000006 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AccurateOCRHelper;
+			productName = AccurateOCRHelper;
+			productReference = D00000000000000000000003 /* AccurateOCRHelper */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -149,6 +237,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					A00000000000000000000007 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					D00000000000000000000004 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -172,6 +263,7 @@
 			targets = (
 				A00000000000000000000007 /* ScreenText */,
 				C00000000000000000000003 /* ScreenTextTests */,
+				D00000000000000000000004 /* AccurateOCRHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -228,6 +320,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D00000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D00000000000000000000020 /* AccurateOCRHelper/main.swift in Sources */,
+				D00000000000000000000021 /* ScreenText/OCR/Shared/OCRError.swift in Sources */,
+				D00000000000000000000022 /* ScreenText/OCR/Shared/VisionOCREngine.swift in Sources */,
+				D00000000000000000000023 /* ScreenText/OCR/Shared/OCRTextProcessor.swift in Sources */,
+				D00000000000000000000024 /* AccurateOCRHelper/OCRPreparationImage.swift in Sources */,
+				D00000000000000000000025 /* ScreenText/OCR/Shared/AccurateOCRProtocol.swift in Sources */,
+				D00000000000000000000028 /* ScreenText/Coordinates/CoordinateSpaces.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -235,6 +341,11 @@
 			isa = PBXTargetDependency;
 			target = A00000000000000000000007 /* ScreenText */;
 			targetProxy = C00000000000000000000008 /* PBXContainerItemProxy */;
+		};
+		D00000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D00000000000000000000004 /* AccurateOCRHelper */;
+			targetProxy = D00000000000000000000009 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -356,6 +467,50 @@
 			};
 			name = Release;
 		};
+		D0000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3A8S4JBAZ2;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENTITLEMENTS_ALLOWED = NO;
+				ENTITLEMENTS_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				OTHER_CODE_SIGN_FLAGS = "$(inherited) --entitlements \"$(SRCROOT)/AccurateOCRHelper/AccurateOCRHelper.entitlements\" -i $(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenText.AccurateOCRHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D0000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3A8S4JBAZ2;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENTITLEMENTS_ALLOWED = NO;
+				ENTITLEMENTS_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				OTHER_CODE_SIGN_FLAGS = "$(inherited) --entitlements \"$(SRCROOT)/AccurateOCRHelper/AccurateOCRHelper.entitlements\" -i $(PRODUCT_BUNDLE_IDENTIFIER)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.screentext.ScreenText.AccurateOCRHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -382,6 +537,15 @@
 			buildConfigurations = (
 				C0000000000000000000000B /* Debug */,
 				C0000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D0000000000000000000000C /* Build configuration list for PBXNativeTarget "AccurateOCRHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0000000000000000000000A /* Debug */,
+				D0000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

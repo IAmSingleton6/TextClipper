@@ -4,6 +4,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore(persistence: SettingsPersistence(defaults: .standard))
     private let permissionManager = PermissionManager()
+    private let ocrService: OCRService
+    private var ocrPreparationTask: Task<Void, Never>?
 
     private lazy var settingsWindowController = SettingsWindowController(
         settings: settings,
@@ -20,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var captureController = CaptureController(
         modeProvider: { [settings = self.settings] in settings.lastSelectionMode },
         saveMode: { [settings = self.settings] mode in settings.selectCaptureMode(mode) },
+        processor: CaptureProcessor(
+            captureService: ScreenCaptureService(),
+            ocrService: self.ocrService,
+            clipboardService: ClipboardService(),
+        ),
         onEvent: { [weak self] event in
             self?.handleCaptureEvent(event)
         },
@@ -29,8 +36,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var shortcutManager: GlobalShortcutManager?
     private var menuBarController: MenuBarController?
 
+    override init() {
+        let accurateRecognizer = AccurateOCR()
+        let fastRecognizer = VisionOCR(level: .fast)
+        self.ocrService = OCRService(
+            accurateRecognizer: accurateRecognizer,
+            fastRecognizer: fastRecognizer,
+            preparer: accurateRecognizer,
+        )
+
+        super.init()
+    }
+
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        self.ocrPreparationTask = Task(priority: .userInitiated) { [ocrService = self.ocrService] in
+            await ocrService.prepare()
+        }
 
         self.displayObserver = DisplayConfigurationObserver { [weak self] in
             self?.captureController.cancel()
@@ -71,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.feedbackController.beginCapture(on: display)
         case let .activityChanged(isActive):
             self.menuBarController?.updateCaptureMenuItem(isActive)
+        case let .processingChanged(isProcessing):
+            self.feedbackController.onProcessingChanged(isProcessing)
         case .noTextFound:
             self.feedbackController.onNoTextFound()
         case let .textRecognized(text):
@@ -81,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {
+        self.ocrPreparationTask?.cancel()
         self.shortcutManager?.stop()
         self.captureController.cancel()
         self.feedbackController.hide()

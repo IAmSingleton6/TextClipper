@@ -2,8 +2,14 @@ import AppKit
 
 @MainActor
 protocol NotificationPresenting: AnyObject {
-    func show(_ message: String, on display: SelectionDisplay?)
+    func show(_ message: String, on display: SelectionDisplay?, dismissAfter: Duration?)
     func hide()
+}
+
+extension NotificationPresenting {
+    func show(_ message: String, on display: SelectionDisplay?) {
+        self.show(message, on: display, dismissAfter: .seconds(3))
+    }
 }
 
 @MainActor
@@ -11,7 +17,7 @@ final class NotificationService: NotificationPresenting {
     private var panel: NotificationPanel?
     private var dismissalTask: Task<Void, Never>?
 
-    func show(_ message: String, on display: SelectionDisplay? = nil) {
+    func show(_ message: String, on display: SelectionDisplay? = nil, dismissAfter: Duration? = .seconds(3)) {
         self.hide()
 
         guard let visibleFrame = display?.visibleFrame
@@ -32,8 +38,9 @@ final class NotificationService: NotificationPresenting {
         self.panel = panel
         panel.showFeedback()
 
+        guard let dismissAfter else { return }
         self.dismissalTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: dismissAfter)
             guard !Task.isCancelled else { return }
             self?.hide()
         }

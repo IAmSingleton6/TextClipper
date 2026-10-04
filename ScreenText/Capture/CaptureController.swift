@@ -11,6 +11,7 @@ enum CaptureState: Equatable {
 enum CaptureEvent {
     case started(SelectionDisplay)
     case activityChanged(Bool)
+    case processingChanged(Bool)
     case noTextFound
     case textRecognized(String)
     case failed(Error)
@@ -40,22 +41,15 @@ final class CaptureController {
     init(
         modeProvider: @escaping () -> CaptureMode,
         saveMode: @escaping (CaptureMode) -> Void,
-        clipboardService: any ClipboardWriting = ClipboardService(),
-        ocrService: any TextRecognizing = OCRService(),
-        captureService: any ScreenCapturing = ScreenCaptureService(),
+        processor: any CaptureProcessing,
         toolbar: any CaptureToolbarPresenting = CaptureToolbarWindow(),
         selectionManager: any SelectionManaging = SelectionManager(),
         displayProvider: @escaping () -> SelectionDisplay? = SelectionDisplay.atMouse,
         escapeMonitor: any EscapeMonitoring = EscapeMonitor(),
-        processor: (any CaptureProcessing)? = nil,
         onEvent: ((CaptureEvent) -> Void)? = nil,
     ) {
         self.selectedMode = modeProvider()
-        self.processor = processor ?? CaptureProcessor(
-            captureService: captureService,
-            ocrService: ocrService,
-            clipboardService: clipboardService,
-        )
+        self.processor = processor
         self.escapeMonitor = escapeMonitor
         self.toolbar = toolbar
         self.selectionManager = selectionManager
@@ -66,10 +60,15 @@ final class CaptureController {
     }
 
     func toggle() {
-        if self.isActive {
-            self.cancel()
-        } else {
+        switch self.state {
+        case .idle:
             self.start()
+        case .toolbar, .selecting:
+            self.cancel()
+        case .processing:
+            // A cold Vision request can take time to load its models. Repeated
+            // capture shortcuts must not silently discard the pending result.
+            break
         }
     }
 
@@ -147,16 +146,20 @@ final class CaptureController {
     func cancel() {
         guard self.isActive else { return }
 
+        let wasProcessing = self.state == .processing
         self.sessionID = UUID()
         self.processingTask?.cancel()
         self.processingTask = nil
+        self.escapeMonitor.stop()
         self.hideSelectionUI()
         self.state = .idle
+        if wasProcessing {
+            self.onEvent?(.processingChanged(false))
+        }
         self.onEvent?(.activityChanged(false))
     }
 
     private func hideSelectionUI() {
-        self.escapeMonitor.stop()
         self.toolbar.hide()
         self.selectionManager.hide()
     }
@@ -177,6 +180,7 @@ final class CaptureController {
         let id = UUID()
         self.sessionID = id
         let processor = self.processor
+        self.onEvent?(.processingChanged(true))
 
         self.processingTask = Task { [weak self] in
             do {

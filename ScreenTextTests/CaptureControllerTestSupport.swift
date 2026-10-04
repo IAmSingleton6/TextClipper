@@ -23,11 +23,11 @@ final class CaptureFixture {
             self?.savedMode = mode
             self?.settings?.selectCaptureMode(mode)
         },
+        processor: self.processor,
         toolbar: self.toolbar,
         selectionManager: self.selectionManager,
         displayProvider: { [weak self] in self?.display },
         escapeMonitor: self.escape,
-        processor: self.processor,
         onEvent: { [weak self] in self?.record($0) },
     )
 
@@ -103,6 +103,16 @@ final class CaptureFixture {
         }
     }
 
+    var processingChanges: [Bool] {
+        self.events.compactMap {
+            if case let .processingChanged(processing) = $0 {
+                processing
+            } else {
+                nil
+            }
+        }
+    }
+
     var lifecycleEvents: [String] {
         self.events.compactMap {
             switch $0 {
@@ -153,8 +163,8 @@ final class CaptureFixture {
         self.escape.trigger()
     }
 
-    func waitForResult() async throws {
-        try await self.resultDelivered.wait(for: "capture result (controller state: \(self.state))")
+    func waitForResult(timeout: Duration = .seconds(10)) async throws {
+        try await self.resultDelivered.wait(for: "capture result (controller state: \(self.state))", timeout: timeout)
     }
 
     func waitForProcessingToReturn() async throws {
@@ -198,7 +208,7 @@ private extension CaptureEvent {
     var isProcessingResult: Bool {
         switch self {
         case .textRecognized, .noTextFound, .failed: true
-        case .started, .activityChanged: false
+        case .started, .activityChanged, .processingChanged: false
         }
     }
 }

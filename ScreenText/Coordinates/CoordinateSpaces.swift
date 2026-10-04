@@ -181,3 +181,37 @@ struct CroppedImagePixelPoint: Equatable, Sendable {
         self.maskContextPoint.y
     }
 }
+
+/// Vision image-relative rect in normalized units (0...1). Origin is bottom-left; x increases right, y increases up.
+struct VisionNormalizedRect: Equatable, Sendable {
+    let visionNormalizedRect: CGRect
+
+    init(visionNormalizedRect: CGRect) {
+        self.visionNormalizedRect = visionNormalizedRect
+    }
+
+    init(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+        self.visionNormalizedRect = CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    static let zero = Self(x: 0, y: 0, width: 0, height: 0)
+    var minX: CGFloat {
+        self.visionNormalizedRect.minX
+    }
+
+    var minY: CGFloat {
+        self.visionNormalizedRect.minY
+    }
+
+    var maxY: CGFloat {
+        self.visionNormalizedRect.maxY
+    }
+
+    var midY: CGFloat {
+        self.visionNormalizedRect.midY
+    }
+
+    var height: CGFloat {
+        self.visionNormalizedRect.height
+    }
+}

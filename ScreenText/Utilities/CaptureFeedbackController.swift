@@ -25,6 +25,14 @@ final class CaptureFeedbackController {
         self.display = display
     }
 
+    func onProcessingChanged(_ isProcessing: Bool) {
+        if isProcessing {
+            self.notifications.show("Reading text… Press Escape to cancel", on: self.display, dismissAfter: nil)
+        } else {
+            self.notifications.hide()
+        }
+    }
+
     func onCopiedText(_ text: String) {
         guard
             self.settings.showCapturedText,

@@ -12,9 +12,9 @@ extension CaptureControllerTests {
         var results = 0
         // Own the controller directly: fixture cleanup would cancel before deinit.
         var controller: CaptureController? = CaptureController(
-            modeProvider: { .box }, saveMode: { _ in }, toolbar: TestCaptureToolbar(),
+            modeProvider: { .box }, saveMode: { _ in }, processor: processor, toolbar: TestCaptureToolbar(),
             selectionManager: selection, displayProvider: { testDisplay }, escapeMonitor: escape,
-            processor: processor, onEvent: { event in
+            onEvent: { event in
                 switch event {
                 case .textRecognized, .noTextFound, .failed: results += 1
                 default: break

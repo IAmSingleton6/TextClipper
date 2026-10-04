@@ -148,7 +148,7 @@ extension DesktopTests {
             )
             let capture = CaptureFixture(
                 initialMode: .freehand, display: selection.display, selectionManager: selection.manager,
-                captureService: FreehandImageFixture(image: image), ocrService: OCRService(),
+                captureService: FreehandImageFixture(image: image), ocrService: NativeOCRFixture().makeService(),
                 clipboardService: clipboard.service,
                 onEvent: { capture, event in
                     if case let .textRecognized(text) = event {

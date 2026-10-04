@@ -1,4 +1,5 @@
 import AppKit
+import os
 @testable import ScreenText
 import Testing
 
@@ -44,53 +45,146 @@ struct OCRTextProcessorTests {
     }
 }
 
-/// Vision requests share native model and compute resources.
-@Suite(.serialized, .timeLimit(.minutes(1))) @MainActor
-struct OCRServiceTests {
-    @Test(arguments: [false, true])
-    func `recognizes light and dark text images`(dark: Bool) async throws {
-        // GIVEN
-        let lines = ["Hello world", "Revenue increased by 18%.", "https://example.com"]
-        let image = try TestImages.text(lines, dark: dark)
+extension DesktopTests {
+    /// Native OCR workers initialize CoreText and WindowServer resources used by desktop tests.
+    @MainActor
+    struct OCRServiceTests {
+        private let ocr = NativeOCRFixture()
 
-        // WHEN
-        let text = try await OCRService().recognizeText(from: image)
+        @Test func `launch preparation runs once and subsequent captures return their own text`() async throws {
+            let preparations = OSAllocatedUnfairLock(initialState: 0)
+            let service = self.ocr
+                .makeService(preparer: TestOCRPreparer { [accurateRecognizer = self.ocr.accurateRecognizer] in
+                    preparations.withLock { $0 += 1 }
+                    try await accurateRecognizer.prepare()
+                })
+            let image = try TestImages.text(["Hello world"])
 
-        // THEN
-        #expect(text == lines.joined(separator: "\n"))
-    }
+            // WHEN
+            async let first: Void = service.prepare()
+            async let second: Void = service.prepare()
+            _ = await (first, second)
+            let started = ContinuousClock.now
+            let text = try await service.recognizeText(from: image)
+            // A prepared accurate capture must not compile the models a second time.
+            #expect(started.duration(to: .now) < .seconds(5))
+            await service.prepare()
 
-    @Test func `freehand masking excludes text outside the selected shape`() async throws {
-        // GIVEN
-        let image = try TestImages.text(["OUTSIDE", "INSIDE"],
-                                        positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
-        let masked = try ImageMasker().applyFreehandMask(to: image, points: [
-            .init(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
-            .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200),
-        ])
-
-        // WHEN
-        let text = try await OCRService().recognizeText(from: masked)
-
-        // THEN
-        #expect(text == "INSIDE")
-    }
-
-    @Test func `a blank image produces no recognized text`() async throws {
-        let image = try TestImages.text([])
-        #expect(try await OCRService().recognizeText(from: image).isEmpty)
-    }
-
-    @Test func `pre cancelled OCR throws cancellation instead of recognizing text`() async throws {
-        // GIVEN
-        let image = try TestImages.text([])
-        let task = Task {
-            withUnsafeCurrentTask { $0?.cancel() }
-            return try await OCRService().recognizeText(from: image)
+            // THEN
+            #expect(preparations.withLock { $0 } == 1)
+            #expect(text == "Hello world")
         }
 
-        // WHEN / THEN
-        await #expect(throws: CancellationError.self) { try await task.value }
+        @Test func `failed preparation can retry without preventing capture`() async throws {
+            let preparations = OSAllocatedUnfairLock(initialState: 0)
+            let service = self.ocr
+                .makeService(preparer: TestOCRPreparer { [accurateRecognizer = self.ocr.accurateRecognizer] in
+                    let attempt = preparations.withLock { count in
+                        count += 1
+                        return count
+                    }
+                    if attempt == 1 {
+                        throw OCRError.recognitionFailed
+                    }
+                    try await accurateRecognizer.prepare()
+                })
+
+            // WHEN
+            await service.prepare()
+            await service.prepare()
+            await service.prepare()
+
+            // THEN
+            #expect(preparations.withLock { $0 } == 2)
+            let image = try TestImages.text(["Hello world"])
+            #expect(try await service.recognizeText(from: image) == "Hello world")
+        }
+
+        @Test func `capture arriving before launch preparation starts initialization once`() async throws {
+            let preparations = OSAllocatedUnfairLock(initialState: 0)
+            let service = self.ocr
+                .makeService(preparer: TestOCRPreparer { [accurateRecognizer = self.ocr.accurateRecognizer] in
+                    preparations.withLock { $0 += 1 }
+                    try await accurateRecognizer.prepare()
+                })
+            let image = try TestImages.text(["Hello world"])
+
+            // WHEN
+            #expect(try await service.recognizeText(from: image) == "Hello world")
+            await service.prepare()
+
+            // THEN
+            #expect(preparations.withLock { $0 } == 1)
+        }
+
+        @Test func `cancelled launch preparation leaves recognition available`() async throws {
+            let service = self.ocr.makeService()
+            let task = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                await service.prepare()
+            }
+
+            // WHEN
+            await task.value
+            await service.prepare()
+
+            // THEN
+            let image = try TestImages.text(["Hello world"])
+            #expect(try await service.recognizeText(from: image) == "Hello world")
+        }
+
+        @Test(arguments: [false, true])
+        func `recognizes light and dark text images`(dark: Bool) async throws {
+            // GIVEN
+            let lines = ["Hello world", "Revenue increased by 18%.", "https://example.com"]
+            let image = try TestImages.text(lines, dark: dark)
+
+            // WHEN
+            let service = self.ocr.makeService()
+            await service.prepare()
+            let text = try await service.recognizeText(from: image)
+
+            // THEN
+            #expect(text == lines.joined(separator: "\n"))
+        }
+
+        @Test func `freehand masking excludes text outside the selected shape`() async throws {
+            // GIVEN
+            let image = try TestImages.text(["OUTSIDE", "INSIDE"],
+                                            positions: [.init(x: 10, y: 270), .init(x: 350, y: 130)])
+            let masked = try ImageMasker().applyFreehandMask(to: image, points: [
+                .init(x: 0, y: 0), .init(x: 900, y: 0), .init(x: 900, y: 300),
+                .init(x: 250, y: 300), .init(x: 250, y: 200), .init(x: 0, y: 200),
+            ])
+
+            // WHEN
+            let service = self.ocr.makeService()
+            await service.prepare()
+            let text = try await service.recognizeText(from: masked)
+
+            // THEN
+            #expect(text == "INSIDE")
+        }
+
+        @Test func `a blank image produces no recognized text`() async throws {
+            let image = try TestImages.text([])
+            let service = self.ocr.makeService()
+            await service.prepare()
+            #expect(try await service.recognizeText(from: image).isEmpty)
+        }
+
+        @Test func `pre cancelled OCR throws cancellation instead of recognizing text`() async throws {
+            // GIVEN
+            let image = try TestImages.text([])
+            let service = self.ocr.makeService()
+            let task = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return try await service.recognizeText(from: image)
+            }
+
+            // WHEN / THEN
+            await #expect(throws: CancellationError.self) { try await task.value }
+        }
     }
 }
 

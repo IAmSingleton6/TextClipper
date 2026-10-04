@@ -69,7 +69,7 @@ extension DesktopTests {
                 display: selection.display,
                 selectionManager: selection.manager,
                 captureService: ImageCaptureFixture(image: image),
-                ocrService: OCRService(),
+                ocrService: NativeOCRFixture().makeService(),
                 clipboardService: clipboard.service,
             )
 
@@ -84,17 +84,23 @@ extension DesktopTests {
             try selection.release(at: .init(x: 100, y: 50))
             #expect(selection.manager.window == nil)
             #expect(capture.state == .processing)
+            capture.toggle()
+            capture.toggle()
+            #expect(capture.state == .processing)
             print("[ClipboardProcessingTests] Waiting for OCR and clipboard completion")
+            // First-use captures must finish while accurate OCR prepares elsewhere.
             try await capture.waitForResult()
 
             // THEN
-            guard case .textRecognized = try #require(capture.results.first) else {
+            guard case let .textRecognized(text) = try #require(capture.results.first) else {
                 Issue.record("Native box processing should deliver recognized text")
                 return
             }
             #expect(capture.isIdle)
             #expect(capture.results.count == 1)
-            #expect(try clipboard.pastedText() == "Hello world\nTotal: 42")
+            #expect(text.contains("Hello world"))
+            #expect(text.contains("42"))
+            #expect(try clipboard.pastedText() == text)
         }
 
         @Test func `recognized text is copied before completion is delivered`() async throws {

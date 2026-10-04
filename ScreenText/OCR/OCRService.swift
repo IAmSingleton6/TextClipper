@@ -1,38 +1,99 @@
 import CoreGraphics
-import Vision
-
-enum OCRError: Error, Equatable {
-    case recognitionFailed
-}
 
 protocol TextRecognizing: Sendable {
     func recognizeText(from image: CGImage) async throws -> String
 }
 
-struct OCRService: TextRecognizing {
-    /// This nonisolated async service runs Vision away from the main actor.
-    /// Requests and images live only for the duration of this operation.
+/// Prepares an app recognition backend before OCRService starts using it for captures.
+protocol OCRPreparing: Sendable {
+    func prepare() async throws
+}
+
+/// Serves captures immediately while the accurate recognizer prepares separately.
+actor OCRService: TextRecognizing {
+    private let accurateRecognizer: any TextRecognizing
+    private let fastRecognizer: any TextRecognizing
+    private let preparer: any OCRPreparing
+    private var preparationTask: Task<Void, Never>?
+    private var isPrepared = false
+
+    init(
+        accurateRecognizer: any TextRecognizing,
+        fastRecognizer: any TextRecognizing,
+        preparer: any OCRPreparing,
+    ) {
+        self.accurateRecognizer = accurateRecognizer
+        self.fastRecognizer = fastRecognizer
+        self.preparer = preparer
+    }
+
+    func prepare() async {
+        guard !Task.isCancelled else { return }
+        guard let task = self.prepareAccurateRecognizerIfNeeded() else { return }
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
     func recognizeText(from image: CGImage) async throws -> String {
         try Task.checkCancellation()
-
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
+        self.prepareAccurateRecognizerIfNeeded()
+        let usesAccurateRecognition = self.isPrepared
+        let recognizer = usesAccurateRecognition ? self.accurateRecognizer : self.fastRecognizer
 
         do {
-            try VNImageRequestHandler(cgImage: image, orientation: .up).perform([request])
-        } catch {
+            let text = try await recognizer.recognizeText(from: image)
             try Task.checkCancellation()
-            throw OCRError.recognitionFailed
-        }
-        try Task.checkCancellation()
+            return text
+        } catch {
+            guard usesAccurateRecognition else { throw error }
 
-        let blocks = (request.results ?? []).compactMap { observation -> RecognizedTextBlock? in
-            guard let text = observation.topCandidates(1).first?.string else { return nil }
-            return RecognizedTextBlock(text: text, bounds: observation.boundingBox)
-        }
+            self.isPrepared = false
+            try Task.checkCancellation()
+            self.prepareAccurateRecognizerIfNeeded()
 
-        return OCRTextProcessor().text(from: blocks)
+            return try await self.recognizeFast(from: image)
+        }
     }
+
+    private func recognizeFast(from image: CGImage) async throws -> String {
+        let text = try await fastRecognizer.recognizeText(from: image)
+        try Task.checkCancellation()
+        return text
+    }
+
+    @discardableResult
+    private func prepareAccurateRecognizerIfNeeded() -> Task<Void, Never>? {
+        guard !self.isPrepared else { return nil }
+        if let preparationTask {
+            return preparationTask
+        }
+
+        let preparer = self.preparer
+        let task = Task { [weak self] in
+            let prepared: Bool
+
+            do {
+                try await preparer.prepare()
+                try Task.checkCancellation()
+                prepared = true
+            } catch {
+                prepared = false
+            }
+
+            await self?.preparationFinished(prepared)
+        }
+        self.preparationTask = task
+        return task
+    }
+
+    private func preparationFinished(_ prepared: Bool) {
+        self.isPrepared = prepared
+        self.preparationTask = nil
+    }
+
+    deinit { preparationTask?.cancel() }
 }

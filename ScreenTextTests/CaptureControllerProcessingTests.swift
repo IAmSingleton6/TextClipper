@@ -131,10 +131,11 @@ extension CaptureControllerTests {
         #expect(capture.state == .processing)
         #expect(!capture.toolbarIsVisible)
         #expect(!capture.selectionIsVisible)
-        #expect(!capture.escape.isListening)
-        #expect(capture.escape.stops == 1)
+        #expect(capture.escape.isListening)
+        #expect(capture.escape.stops == 0)
         #expect(capture.activityChanges == [true])
         #expect(capture.results.isEmpty)
+        #expect(capture.processingChanges == [true])
     }
 
     @Test(arguments: [CaptureState.toolbar, .selecting(.box), .selecting(.freehand)])
@@ -190,7 +191,7 @@ extension CaptureControllerTests {
         #expect(capture.escape.starts == 0)
     }
 
-    @Test func `Escape is unavailable during processing`() async throws {
+    @Test func `Escape cancels pending processing and clears its feedback`() async throws {
         let processor = TestCaptureProcessor(suspends: true)
         let capture = CaptureFixture(processor: processor)
 
@@ -204,10 +205,13 @@ extension CaptureControllerTests {
         capture.triggerEscape()
 
         // THEN
-        #expect(capture.state == .processing)
+        #expect(capture.isIdle)
         #expect(!capture.escape.isListening)
         #expect(capture.escape.starts == 1)
         #expect(capture.escape.stops == 1)
+        #expect(capture.processingChanges == [true, false])
+        try processor.finish(with: .success(.textCopied("Cancelled text")))
+        try await processor.waitUntilReturned()
         #expect(capture.results.isEmpty)
     }
 
@@ -250,7 +254,7 @@ extension CaptureControllerTests {
         #expect(!capture.selectionIsVisible)
         #expect(capture.selections.prepareCount == 1)
         #expect(capture.escape.starts == 1)
-        #expect(capture.escape.stops == 1)
+        #expect(capture.escape.stops == 0)
         #expect(capture.activityChanges == [true])
         #expect(capture.results.isEmpty)
     }
@@ -281,7 +285,7 @@ extension CaptureControllerTests {
         #expect(capture.results.isEmpty)
     }
 
-    @Test func `toggling before processing starts discards its eventual result`() async throws {
+    @Test func `repeated shortcuts preserve pending processing and deliver its result`() async throws {
         let processor = TestCaptureProcessor(suspends: true)
         let capture = CaptureFixture(processor: processor)
 
@@ -293,14 +297,32 @@ extension CaptureControllerTests {
         // WHEN
         capture.toggle()
         try await processor.waitUntilStarted()
-        try processor.finish(with: .success(.textCopied("Late text")))
-        try await processor.waitUntilReturned()
+        capture.toggle()
+        capture.toggle()
 
         // THEN
+        #expect(capture.state == .processing)
+        #expect(capture.toolbar.showCount == 1)
+        #expect(capture.selections.prepareCount == 1)
+        #expect(capture.activityChanges == [true])
+        #expect(capture.processingChanges == [true])
+
+        try processor.finish(with: .success(.textCopied("First capture")))
+        try await capture.waitForResult()
+
         #expect(capture.isIdle)
-        #expect(processor.returnedWhileCancelled == [true])
-        #expect(capture.results.isEmpty)
+        #expect(processor.returnedWhileCancelled == [false])
+        guard case let .textRecognized(text) = try #require(capture.results.first) else {
+            Issue.record("Repeated shortcuts should preserve the first capture result")
+            return
+        }
+        #expect(text == "First capture")
         #expect(capture.activityChanges == [true, false])
+        #expect(capture.processingChanges == [true, false])
+
+        capture.toggle()
+        #expect(capture.state == .toolbar)
+        #expect(capture.toolbar.showCount == 2)
     }
 
     @Test(arguments: ProcessingOutcome.allCases, [CaptureState.toolbar, .processing])
@@ -335,7 +357,7 @@ extension CaptureControllerTests {
         #expect(processor.returnedWhileCancelled == [true])
         #expect(capture.toolbarIsVisible == (nextState == .toolbar))
         #expect(capture.selectionIsVisible == (nextState == .toolbar))
-        #expect(capture.escape.isListening == (nextState == .toolbar))
+        #expect(capture.escape.isListening)
     }
 
     @Test func `a new session delivers its own result after cancelled processing returns`() async throws {

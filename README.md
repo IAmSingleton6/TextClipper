@@ -16,7 +16,9 @@ Select an area, and ScreenText uses Apple's Vision framework to recognize the te
 
 The recognized text is copied to your clipboard automatically.
 
-Press **Escape** to cancel an active selection.
+ScreenText is ready to capture immediately at launch. It uses fast text recognition while preparing its more accurate recognizer in the background, then switches automatically when preparation finishes. Early captures may be less accurate and support fewer languages. ScreenText shows **Reading text…** during each capture. Pressing the capture shortcut again during processing keeps the pending capture running.
+
+Press **Escape** to cancel a selection or pending text recognition.
 
 Open **Settings…** from the menu bar to customize the shortcut, launch at login, captured-text preview, and Screen Recording permission.
 
@@ -44,3 +46,7 @@ The repository includes Git hooks for formatting and linting. Enable them with:
 ```
 git config core.hooksPath .githooks
 ```
+
+## Notes
+
+The scheme also builds, embeds, and signs the dedicated `AccurateOCRHelper` target. Fast OCR runs in the main app; accurate OCR stays in the persistent helper. This is to allow the app to use fast OCR until the accurate OCR is warm in the separate process.

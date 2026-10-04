@@ -193,6 +193,67 @@ struct FixedTextRecognizer: TextRecognizing {
     }
 }
 
+/// Each native test owns its helper recognizer; preparation and recognition use that same instance.
+struct NativeOCRFixture {
+    let accurateRecognizer = AccurateOCR()
+
+    func makeService(preparer: (any OCRPreparing)? = nil) -> OCRService {
+        OCRService(
+            accurateRecognizer: self.accurateRecognizer,
+            fastRecognizer: VisionOCR(level: .fast),
+            preparer: preparer ?? self.accurateRecognizer,
+        )
+    }
+}
+
+struct TestOCRPreparer: OCRPreparing {
+    var preparation: @Sendable () async throws -> Void = {}
+
+    func prepare() async throws {
+        try await self.preparation()
+    }
+}
+
+actor SuspendedOCRPreparer: OCRPreparing {
+    private var continuation: CheckedContinuation<Void, Error>?
+    private let started = TestSignal()
+    private let cancelled = TestSignal()
+
+    func prepare() async throws {
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            try await withCheckedThrowingContinuation {
+                self.continuation = $0
+                self.started.signal()
+            }
+            try Task.checkCancellation()
+        } onCancel: {
+            Task { await self.cancel() }
+        }
+    }
+
+    func waitUntilStarted() async throws {
+        try await self.started.wait(for: "OCR preparation to start")
+    }
+
+    func waitUntilCancelled() async throws {
+        try await self.cancelled.wait(for: "OCR preparation to cancel")
+    }
+
+    func finish(_ result: Result<Void, Error> = .success(())) throws {
+        let continuation = self.continuation
+        let pending = try #require(continuation)
+        self.continuation = nil
+        pending.resume(with: result)
+    }
+
+    private func cancel() {
+        self.continuation?.resume(throwing: CancellationError())
+        self.continuation = nil
+        self.cancelled.signal()
+    }
+}
+
 struct TestTextRecognizer: TextRecognizing {
     func recognizeText(from _: CGImage) async throws -> String {
         "Recognized fixture"

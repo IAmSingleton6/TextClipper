@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 case "${1:-}" in
   format)
-    swiftformat ScreenText ScreenTextTests Scripts --config .swiftformat --lint --strict --cache ignore
+    swiftformat ScreenText AccurateOCRHelper ScreenTextTests Scripts --config .swiftformat --lint --strict --cache ignore
     ;;
   lint)
     swiftlint lint --config .swiftlint.yml --strict --no-cache

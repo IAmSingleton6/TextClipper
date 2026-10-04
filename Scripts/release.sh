@@ -54,13 +54,14 @@ xcodebuild -project ScreenText.xcodeproj -scheme ScreenText -configuration Relea
   -disableAutomaticPackageResolution ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION" \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" ENABLE_HARDENED_RUNTIME=YES \
-  OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $keychain" \
+  OTHER_CODE_SIGN_FLAGS="\$(inherited) --timestamp --keychain $keychain" \
   MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$RELEASE_BUILD_NUMBER" build
 
 app="$work/build/Build/Products/Release/ScreenText.app"
 codesign --verify --deep --strict --verbose=2 "$app"
 for architecture in arm64 x86_64; do
   lipo "$app/Contents/MacOS/ScreenText" -verify_arch "$architecture"
+  lipo "$app/Contents/MacOS/AccurateOCRHelper" -verify_arch "$architecture"
 done
 # Staple the app itself before packaging so the installed copy works offline.
 ditto -c -k --keepParent "$app" "$work/ScreenText.zip"

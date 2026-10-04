@@ -4,6 +4,60 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1))) @MainActor
 struct CaptureFeedbackTests {
+    @Test(arguments: [false, true])
+    func `pending capture feedback persists even when text previews are disabled`(showCapturedText: Bool) throws {
+        let feedback = try FeedbackFixture(showCapturedText: showCapturedText)
+
+        // GIVEN
+        feedback.beginCapture()
+
+        // WHEN
+        feedback.processingChanged(true)
+
+        // THEN
+        #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
+        #expect(feedback.notifications.display?.id == testDisplay.id)
+        #expect(feedback.notifications.dismissAfter == nil)
+        #expect(feedback.popup.text == nil)
+    }
+
+    @Test(arguments: [PendingCaptureOutcome.text, .noText, .failure, .cancelled])
+    private func `pending feedback clears when processing ends`(outcome: PendingCaptureOutcome) async throws {
+        let feedback = try FeedbackFixture()
+        let processor = TestCaptureProcessor(suspends: true)
+        let capture = CaptureFixture(processor: processor, onEvent: { _, event in
+            switch event {
+            case let .started(display): feedback.beginCapture(on: display)
+            case let .processingChanged(processing): feedback.processingChanged(processing)
+            case let .textRecognized(text): feedback.copiedText(text)
+            case .noTextFound: feedback.noTextFound()
+            case let .failed(error): feedback.fail(error)
+            case .activityChanged: break
+            }
+        })
+
+        // GIVEN
+        capture.start()
+        capture.beginSelection()
+        capture.completeSelection()
+        try await processor.waitUntilStarted()
+        #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
+        capture.toggle()
+        #expect(feedback.notifications.message == "Reading text… Press Escape to cancel")
+
+        // WHEN
+        if outcome == .cancelled {
+            capture.triggerEscape()
+        }
+        try processor.finish(with: outcome.result)
+        try await capture.waitForProcessingToReturn()
+
+        // THEN
+        #expect(capture.isIdle)
+        #expect(feedback.notifications.message == outcome.message)
+        #expect(feedback.popup.text == (outcome == .text ? "Hello" : nil))
+    }
+
     @Test func `copied text is suppressed when previews are disabled`() throws {
         let feedback = try FeedbackFixture(showCapturedText: false)
 
@@ -271,6 +325,10 @@ private final class FeedbackFixture {
         self.controller.beginCapture(on: display)
     }
 
+    func processingChanged(_ isProcessing: Bool) {
+        self.controller.onProcessingChanged(isProcessing)
+    }
+
     func copiedText(_ text: String) {
         self.controller.onCopiedText(text)
     }
@@ -306,9 +364,11 @@ private final class TestTextPopup: CapturedTextPresenting {
 private final class TestNotifications: NotificationPresenting {
     var message: String?
     var display: SelectionDisplay?
-    func show(_ message: String, on display: SelectionDisplay?) {
+    var dismissAfter: Duration?
+    func show(_ message: String, on display: SelectionDisplay?, dismissAfter: Duration?) {
         self.message = message
         self.display = display
+        self.dismissAfter = dismissAfter
     }
 
     func hide() {
@@ -327,6 +387,26 @@ private enum FeedbackFailure {
         case .capture: ScreenCaptureError.captureFailed
         case .invalidRegion: ScreenCaptureError.invalidRegion
         case .unknown: Unknown.failure
+        }
+    }
+}
+
+private enum PendingCaptureOutcome {
+    case text, noText, failure, cancelled
+
+    var result: Result<CaptureProcessingResult, Error> {
+        switch self {
+        case .text, .cancelled: .success(.textCopied("Hello"))
+        case .noText: .success(.noTextFound)
+        case .failure: .failure(OCRError.recognitionFailed)
+        }
+    }
+
+    var message: String? {
+        switch self {
+        case .text, .cancelled: nil
+        case .noText: "No text found"
+        case .failure: "Could not read selected text"
         }
     }
 }

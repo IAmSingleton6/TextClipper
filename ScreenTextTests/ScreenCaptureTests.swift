@@ -187,7 +187,7 @@ struct CaptureProcessingTests {
         #expect(!capture.selectionIsVisible)
 
         // WHEN
-        capture.toggle()
+        capture.cancel()
         capture.start()
         let image = try TestImages.colored()
         try await service.finish(fails ? .failure(ScreenCaptureError.captureFailed) : .success(image))
